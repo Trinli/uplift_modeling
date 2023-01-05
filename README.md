@@ -50,6 +50,22 @@ python -m experiments.undersampling_experiments starbucks naive_undersampling dc
 This will run a double classifier (a.k.a T-learner) with logistic regression as base learner with naive undersampling with k=8 and tau-isotonic regression for calibration on the starbucks-dataset.
 
 
+# Running the experiments for "Uplift Modeling with High Class Imbalance"
+1. Store appropriate datasets to ./dataset/ in csv-format
+2. Run ´´´python -m data.pickle_dataset´´´ to prepare data appropriately. This normalizes the data and prepares training, validation, and testing sets and creates a new label by running the class-variable transformation. Be patient. The Criteo-uplift 2 dataset is large and we recommend reserving 120GB of RAM for this step. We ran this 10 times to get 10 differently randomized datasets.
+3. Run undersampling experiments by running undersampling_experiments.py with suitable parameters, e.g. ´´´python -m experiments.split_undersampling ./datasets/criteo-uplift.csv123.gz cvt 1,200,10´´´ (replace '123' with whatever your file is named, 'cvt' refers to class-variable transformation, '1,600,10' indicates "test k from 1 to 600 with a step of 10"). Note that the last print section shows the testing set metrics for the best model.
+4. Run isotonic regression experiments, e.g. ´´´python -m experiments.isotonic_regression_for_calibration ./datasets/criteo-uplift.csv123.gz dclr 3´´´ (replace '123' with your dataset file, 'dclr' refers to double-classifier with logistic regression, '3' refers to k=3).
+5. Results are printed to screen and stored in uplift_results.csv. Look for rows with 'Test description' set to 'testing set'.
+
+The alternative models for both undersampling and isotonic regression experiments are
+
+* 'dc' (or 'dclr'): double-classifier with logistic regression
+* 'dcrf': double-classifier with random forest
+* 'cvt' (or 'cvtlr'): class-variable transformation with logistic regression
+* 'cvtrf': class-variable transformation with random forest
+
+In the paper, we created 10 randomized data sets, ran the code 10 times and averaged the results. For visualizations, use function plot_uplift_curve() in uplift_metrics.py.
+
 ## Notes
 The code is mostly written by Otto Nyberg as part of my work on my dissertation at the University of Helsinki.
 Tomasz Kusmierczyk has contributed to the code and Arto Klami has provided useful feedback.

@@ -13,7 +13,7 @@ import gzip
 import time
 import gc
 from models.misc_models import *
-from experiment_aux import *
+#from experiment_aux import *
 
 
 def cvt_experiment(data, k_min=-1, k_max=500, k_step=10, 
