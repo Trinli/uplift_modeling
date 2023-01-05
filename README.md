@@ -42,6 +42,7 @@ with appropriate parameters, e.g.
 python -m experiments.run_crf_experiment starbucks.csv ./datasets/ 1.0 uplift_dc 2 16
 ```
 Here model can be uplift_dc or uplift_rf (the only ones tested compatible with split undersampling), and k_t and k_c can take values larger or equal to 1. 
+
 4. For the other undersampling experiments, run 'python -m experiments.undersampling_experiments [dataset] [undersampling scheme] [model] [calibration method] [output file] [k-values] [positive rate]', e.g. 
 ```
 python -m experiments.undersampling_experiments starbucks naive_undersampling dc_lr isotonic results.csv 8 1
