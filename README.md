@@ -36,7 +36,7 @@ https://www.springer.com/journal/10618
 ## Running the experiments for "Exploring Uplift Modeling with High Class Imbalance"
 1. Store appropriate datasets to ./datasets/ in csv-format
 2. Change rate between treated and untreated if desired (e.g. Criteo-uplift 2 was used with 1:1 treated to untreated ratio)
-3 For split undersampling experiments, run 'python -m experiments.run_crf_experiment [dataset file] ./datasets/ 1.0 [model] [k_t] [k_c]' with appropriate parameters, e.g. 'python -m experiments.run_crf_experiment starbucks.csv ./datasets/ 1.0 uplift_dc 2 16'. Here model can be uplift_dc or uplift_rf (the only ones tested compatible with split undersampling), and k_t and k_c can take values larger or equal to 1. 
+3. For split undersampling experiments, run 'python -m experiments.run_crf_experiment [dataset file] ./datasets/ 1.0 [model] [k_t] [k_c]' with appropriate parameters, e.g. 'python -m experiments.run_crf_experiment starbucks.csv ./datasets/ 1.0 uplift_dc 2 16'. Here model can be uplift_dc or uplift_rf (the only ones tested compatible with split undersampling), and k_t and k_c can take values larger or equal to 1. 
 4. For the other undersampling experiments, run 'python -m experiments.undersampling_experiments [dataset] [undersampling scheme] [model] [calibration method] [output file] [k-values] [positive rate]', e.g. 'python -m experiments.undersampling_experiments starbucks naive_undersampling dc_lr isotonic results.csv 8 1'. This will run a double classifier (a.k.a T-learner) with logistic regression as base learner with naive undersampling with k=8 and tau-isotonic regression for calibration on the starbucks-dataset.
 
 
