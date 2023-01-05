@@ -1,0 +1,13 @@
+#!/bin/bash
+#SBATCH --job-name=hillstrom_auuc_uncertainty
+#SBATCH -o ./slurm_out/auuc_uncertainty_hillstrom.txt
+#SBATCH -M ukko
+#SBATCH -c 1
+#SBATCH -t 23:59:59
+#SBATCH --mem=64G
+#SBATCH -p gpu
+#SBATCH --constraint=[v100]
+export PYTHONPATH=$PYTHONPATH:.
+srun hostname
+srun sleep 5
+srun python -m experiments.uncertainty_experiments auuc_uncertainty hillstrom 16000 40 False False

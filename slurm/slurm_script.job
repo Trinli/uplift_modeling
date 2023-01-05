@@ -1,0 +1,17 @@
+#!/bin/bash
+#SBATCH -M ukko
+#SBATCH -c 1
+#SBATCH -t 23:59:59
+#SBATCH --mem=64G
+#SBATCH -p gpu
+#SBATCH --gres=gpu:1
+##SBATCH --constraint=[a100]
+##SBATCH -pmedium
+#SBATCH -o slurm_out/out%J.txt
+#SBATCH -e slurm_out/out_err%J.txt
+
+source ~/.bashrc
+export PYTHONPATH=$PYTHONPATH:.
+srun hostname
+srun sleep 60
+srun python -m experiments.dirichlet_GP_experiment

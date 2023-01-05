@@ -1,0 +1,16 @@
+__pycache__
+*.pyc
+*.py~
+criteo-uplift.csv
+criteo-uplift.h5
+w
+tmp/**
+.DS_store
+.Rhistory
+*.csv
+settings.json
+*.pdf
+*.png
+!criteo_dataset_size.png
+results/dataset_size/README
+DAMI3/

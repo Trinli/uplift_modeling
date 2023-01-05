@@ -1,0 +1,17 @@
+#!/bin/bash
+#SBATCH -M ukko
+#SBATCH -c 1
+#SBATCH -t 23:59:59
+#SBATCH --mem=64G
+#SBATCH -p gpu
+#SBATCH --gres=gpu:1
+#SBATCH -o slurm_out/out%J.txt
+#SBATCH -e slurm_out/out_err%J.txt
+#SBATCH --array=1-60
+hostname
+source ~/.bashrc
+export PYTHONPATH=$PYTHONPATH:.
+n=$SLURM_ARRAY_TASK_ID
+line=`sed "${n}q;d" ./tmp/parameters_nn_2.txt` 
+echo $line
+srun python -m experiments.undersampling_experiments $line

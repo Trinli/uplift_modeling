@@ -1,0 +1,13 @@
+#!/bin/bash
+#SBATCH --job-name=starbucks_auuc_uncertainty
+#SBATCH -o ./slurm_out/auuc_uncertainty_starbucks.txt
+#SBATCH -M ukko
+#SBATCH -c 1
+#SBATCH -t 23:59:59
+#SBATCH --mem=64G
+#SBATCH -p gpu
+#SBATCH --constraint=[v100]
+export PYTHONPATH=$PYTHONPATH:.
+srun hostname
+srun sleep 5
+srun python -m experiments.uncertainty_experiments auuc_uncertainty starbucks 16000 12 False False
