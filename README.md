@@ -1,4 +1,4 @@
-# uplift
+# Uplift Modeling
 Code relating to uplift modeling
 
 1. Download data to ./datasets/
