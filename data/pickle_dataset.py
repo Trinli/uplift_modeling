@@ -14,8 +14,8 @@ import data.load_data as load_data
 
 
 CRITEO_FORMAT = load_data.DATA_FORMAT
-CRITEO_FORMAT['file_name'] = 'criteo_100k.csv'  # This is for testing.
-#CRITEO_FORMAT['file_name'] = 'criteo-uplift.csv'  # This is the actual experiment.
+# CRITEO_FORMAT['file_name'] = 'criteo_100k.csv'  # This is for testing.
+CRITEO_FORMAT['file_name'] = 'criteo-uplift.csv'  # This is the actual experiment.
 # CRITEO_FORMAT['y_idx'] = 14  # for the "visit" label. Using 'conversion' (13) by default.
 
 
