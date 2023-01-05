@@ -35,7 +35,7 @@ import metrics.uplift_metrics as uplift_metrics  # Metrics
 import models.data_shared_lasso as data_shared_lasso  # Original benchmark
 import models.double_classifier as double_classifier  # Basic approach
 import models.class_variable_transformation as class_variable_transformation  # CVT
-import data.revert_label_transformation as revert_label_transformation  # Athey's version of CVT
+import models.revert_label_transformation as revert_label_transformation  # Athey's version of CVT
 import models.residual_model as residual_model
 import copy
 import data.pickle_dataset as pickle_dataset
