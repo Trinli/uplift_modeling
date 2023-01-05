@@ -21,6 +21,17 @@ Code relating to uplift modeling
 * ./tests/ contains a few tests with the most important one being a test for the metrics package.
 
 
+## Publications
+The following publications are based on the code in this repository:
+
+* "Uplift Modeling with High Class Imbalance." Otto Nyberg, Tomasz Kuśmierczyk, and Arto Klami. Asian Conference on Machine Learning. PMLR, 2021.
+https://proceedings.mlr.press/v157/nyberg21a
+
+* "Exploring Uplift Modeling with High Class Imbalance." Otto Nyberg and Arto Klami. Data Mining and Knowledge Discovery (accepted for publication), 2023.
+https://www.springer.com/journal/10618
+
+* "Quantifying Uncertainty of the Conditional Average Treatment Effect." Otto Nyberg and Arto Klami. Work-in-progress.
+
 ## Notes
 The code is mostly written by Otto Nyberg as part of my work on my dissertation at the University of Helsinki.
 Tomasz Kusmierczyk has contributed to the code and Arto Klami has provided useful feedback.
