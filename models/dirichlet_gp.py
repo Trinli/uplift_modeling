@@ -35,7 +35,6 @@ class DirichletGP():
     def __init__(self):
         """
         Args:
-        a_eps (float): "Bias" for dirichlet priors. Must be larger than 0.
         """
         self.model = None  # Needed outside of fit
         self.y_mean = None  # Needed outside of fit
@@ -51,6 +50,8 @@ class DirichletGP():
         Args
         X (np.array): Features
         y (np.array): Binary labels
+        a_eps (float): "Bias" for dirichlet priors. Must be larger than 0.
+        ARD (bool): (Not used in experiments.)
         """
         dim = X.shape[1]
         if ARD:
