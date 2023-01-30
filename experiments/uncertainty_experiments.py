@@ -289,12 +289,12 @@ def train_honest_tree(data, file_name_stub="tree_tmp",
     # Find observation with "large" uplift and plot that. Need to find a "large" through one single run, and then
     # use that same for other runs.
     # Find max in first 100k tree_pred
-    idx = np.argmax(tree_pred[:100000])
+    idx = np.argmax(tree_tau[:100000])
     print("Testing set observation with largest tau at {}".format(idx))
     # Print both predictions and uncertainty for this.
 
     # Plot 10 items _and_ a sample with large tau:
-    for i in [i for i in range(10)] + [idx]:
+    for i in [j for j in range(10)] + [idx]:
         # Plot for Tree
         fig, ax = plt.subplots(1, 2, figsize=(8, 2))
         test_item = data['testing_set']['X'][i, :].reshape((1, -1))
