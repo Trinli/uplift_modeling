@@ -286,8 +286,15 @@ def train_honest_tree(data, file_name_stub="tree_tmp",
                                     parameters=tree_average_width)  # Storing average width with results!
     tree_metrics.write_to_csv("./results/uncertainty_tree_results.csv")
 
-    # Plot 10 items:
-    for i in range(10):
+    # Find observation with "large" uplift and plot that. Need to find a "large" through one single run, and then
+    # use that same for other runs.
+    # Find max in first 100k tree_pred
+    idx = np.argmax(tree_pred[:100000])
+    print("Testing set observation with largest tau at {}".format(idx))
+    # Print both predictions and uncertainty for this.
+
+    # Plot 10 items _and_ a sample with large tau:
+    for i in [i for i in range(10)] + [idx]:
         # Plot for Tree
         fig, ax = plt.subplots(1, 2, figsize=(8, 2))
         test_item = data['testing_set']['X'][i, :].reshape((1, -1))
@@ -295,7 +302,8 @@ def train_honest_tree(data, file_name_stub="tree_tmp",
         X_plot = np.linspace(0, 1, 1000)[:, np.newaxis]
         ax[0].plot(X_plot, beta.pdf(X_plot,
             tree_params[0]['alpha_t'], tree_params[0]['beta_t']),
-                label="$p_{t=1}$")
+                label="$p_{t=1}$")  # We want to change the scale here.
+        ax[0].set_xlim([0, .5])
         #ax[0, 1].text(-3.5, 0.31, "p(y=1|x, t=1), Honest Tree")
 
         ax[0].plot(X_plot, beta.pdf(X_plot,
@@ -307,6 +315,7 @@ def train_honest_tree(data, file_name_stub="tree_tmp",
         X_plot = np.linspace(-1, 1, 2000)[:, np.newaxis]
         log_dens = kde.score_samples(X_plot)
         ax[1].plot(X_plot[:, 0], np.exp(log_dens), label="$u$")
+        ax[1].set_xlim([-.5, .5])
         # ax[1].spines['left'].set_position('zero')  # This was not it. Scale to the left, but line through origo.
         ax[1].axvline(0, color='black', linewidth=0.75)
 
