@@ -289,7 +289,8 @@ def train_honest_tree(data, file_name_stub="tree_tmp",
     # Find observation with "large" uplift and plot that. Need to find a "large" through one single run, and then
     # use that same for other runs.
     # Find max in first 100k tree_pred
-    idx = np.argmax(tree_tau[:100000])
+    #idx = np.argmax(tree_tau[:100000])
+    idx = 19  # Found this by running line above with 100 000 observations on Criteo 2.
     print("Testing set observation with largest tau at {}".format(idx))
     # Print both predictions and uncertainty for this.
 
@@ -303,7 +304,7 @@ def train_honest_tree(data, file_name_stub="tree_tmp",
         ax[0].plot(X_plot, beta.pdf(X_plot,
             tree_params[0]['alpha_t'], tree_params[0]['beta_t']),
                 label="$p_{t=1}$")  # We want to change the scale here.
-        ax[0].set_xlim([0, .5])
+        #ax[0].set_xlim([0, .5])
         #ax[0, 1].text(-3.5, 0.31, "p(y=1|x, t=1), Honest Tree")
 
         ax[0].plot(X_plot, beta.pdf(X_plot,
@@ -311,11 +312,11 @@ def train_honest_tree(data, file_name_stub="tree_tmp",
 
         # Uncertainty of uplift: This one needs a different scale for the x-axis!!
         tree_samples = tree_model.generate_sample(test_item)
-        kde = KernelDensity(kernel='gaussian', bandwidth=0.02).fit(tree_samples.reshape(-1, 1))
+        kde = KernelDensity(kernel='gaussian', bandwidth=0.05).fit(tree_samples.reshape(-1, 1))
         X_plot = np.linspace(-1, 1, 2000)[:, np.newaxis]
         log_dens = kde.score_samples(X_plot)
         ax[1].plot(X_plot[:, 0], np.exp(log_dens), label="$u$")
-        ax[1].set_xlim([-.5, .5])
+        #ax[1].set_xlim([-.5, .5])
         # ax[1].spines['left'].set_position('zero')  # This was not it. Scale to the left, but line through origo.
         ax[1].axvline(0, color='black', linewidth=0.75)
 
