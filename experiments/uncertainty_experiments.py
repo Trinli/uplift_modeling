@@ -132,7 +132,8 @@ def train_dirichlet_gp(data, file_name_stub="gp_tmp",
         fig, ax = plt.subplots(1, 2, figsize=(8, 2))
         #fig.subplots_adjust(hspace=0.05, wspace=0.05)
         #ax[0, 0].fill(X_plot[:, 0], np.exp(log_dens))
-        ax[0].plot(X_plot[:, 0], np.exp(log_dens), label="$p_{t=1}$")
+        ax[0].plot(X_plot[:, 0], np.exp(log_dens), label="$p_{t=1}$")  # Width 0 to 0.5?
+        ax[0].set_xlim([0, 0.5])
         #ax[0, 0].text(-3.5, 0.31, "p(y=1|x, t=1), Dirichlet GP")
 
         # Uncertainty of p(y=1|x, t=0) for D-GP:
@@ -157,6 +158,7 @@ def train_dirichlet_gp(data, file_name_stub="gp_tmp",
         #fig.subplots_adjust(hspace=0.05, wspace=0.05)
         #ax[2, 0].fill(X_plot[:, 0], np.exp(log_dens))
         ax[1].plot(X_plot[:, 0], np.exp(log_dens), label="$u$")
+        ax[1].set_xlim([-.5, .5])
         ax[1].axvline(0, color='black', linewidth=0.75)
         ax[0].legend()
         ax[1].legend()
@@ -244,10 +246,15 @@ def dirichlet_gp_auuc_uncertainty(data, file_name_stub="gp_tmp",
 
 def train_honest_tree(data, file_name_stub="tree_tmp",
                       dataset=None, size=None,
+                      min_samples_leaf=None,
                       honest=True, max_leaf_nodes=None,
                       undersampling=False):
     # Train honest tree
-    tree_model = honest_tree.HonestUpliftTree(max_leaf_nodes=max_leaf_nodes)
+    if min_samples_leaf is not None:
+        tree_model = honest_tree.HonestUpliftTree(max_leaf_nodes=max_leaf_nodes,
+        min_samples_leaf=min_samples_leaf)
+    else:
+        tree_model = honest_tree.HonestUpliftTree(max_leaf_nodes=max_leaf_nodes)
     if honest:
         if undersampling:
             print("Training honest tree with undersampling...")
@@ -332,14 +339,89 @@ def train_honest_tree(data, file_name_stub="tree_tmp",
     return tree_metrics, tree_average_width
 
 
-def parse_result_file(result_file='./results/uncertainty/uncertainty_tree_results.csv'):
+def find_tree_parameters():
     """
-    Function for parsing results from csv-file and printing them in
-    latex-format.
+    Function that uses method above and cross-validation (?) to find
+    best parameters.
+    """
+    # Load data. Starbucks.
+    data_format = ld.STARBUCKS_FORMAT
+    data_format['file_name'] = './datasets/' + data_format['file_name']
+    data = ld.DatasetCollection(data_format['file_name'], data_format=data_format)
+    # Get a 16k training set (actually 16k split 1/2 tree structure, 1/2 calibration)
+    size = 16000
+    data.add_set('tree_train', 0, int(size/2))
+    data.add_set('tree_val', int(size/2), size)
 
-    Args:
-    result_file (str): CSV-file containing results as writteh to file by
-     DatasetCollection.write_to_csv().
+    min_sample_leaf_list = [2**i for i in range(4, 13)]  # From 64 to 2**12=4096, experiments were run with 100
+    max_leaf_nodes_list = [2**i for i in range(1, 9)]  # 81 for Criteo, 34 for Hillstrom, 12 for Starbucks in main experiments
+    results = []
+    for min_sample_leaf in min_sample_leaf_list:
+        res_over_leafs = []
+        for max_leaf_nodes in max_leaf_nodes_list:
+            tmp = train_honest_tree(data=data,
+                min_samples_leaf=min_sample_leaf,
+                max_leaf_nodes=max_leaf_nodes) #, honest=False)
+            res_over_leafs.append((tmp, min_sample_leaf, max_leaf_nodes))
+        results.append(res_over_leafs)
+    for res in results:
+        tmp = [item[0][1] for item in res]
+        print(tmp)
+    # Larger min_sample_leaf leads to narrower average CI - as expected
+    # min_sample_leaf 4098 implies splitting training data in two leafs...
+    # However, AUUC is not particularly good
+    # Max_leaf_nodes could be smaller for optimal AUUC?
+    for res in results:
+        tmp = [item[0][0].auuc for item in res]
+        print(tmp)
+
+
+    # Drop last row
+    tmp = [res for res in results[:-1]]
+    # Drop two last columns:
+    tmp = [res[:-2] for res in tmp]
+    aci = []
+    for line in tmp:
+        tmp_ = [item[0][1] for item in line]
+        print(tmp_)
+        aci.append(tmp_)
+    aci = np.array(aci)
+
+    fig, ax = plt.subplots(1, 2, sharey=True, sharex=True)
+    fig.tight_layout(pad=4)
+    im_aci = ax[0].imshow(aci, cmap='plasma')
+    plt.colorbar(im_aci, ax=ax[0], fraction=0.05)
+    # Add ticks and something.
+    #plt.yticks([i for i in range(8)], [str(item) for item in min_sample_leaf_list[:-1]])
+    ax[0].set_yticks([i for i in range(8)], [str(item) for item in min_sample_leaf_list[:-1]])
+    #plt.xticks([i for i in range(6)], [str(item) for item in max_leaf_nodes_list[:-2]])
+    ax[0].set_xticks([i for i in range(6)], [str(item) for item in max_leaf_nodes_list[:-2]])
+    ax[0].set_title("Average CI")
+    #plt.ylabel('Min. samples in node')
+    #plt.xlabel('Max. number of leaf nodes')
+    ax[0].set_ylabel('Min. samples in node')
+    ax[0].set_xlabel('Max. number of leaf nodes')
+
+    auuc = []
+    for line in tmp:
+        tmp_ = [item[0][0].auuc for item in line]
+        auuc.append(tmp_)
+    auuc = np.array(auuc)
+    im_auuc = ax[1].imshow(auuc, cmap='viridis')
+    plt.colorbar(im_auuc, ax=ax[1], fraction=0.05)
+    #plt.yticks([i for i in range(8)], [str(item) for item in min_sample_leaf_list[:-1]])
+    #plt.xticks([i for i in range(6)], [str(item) for item in max_leaf_nodes_list[:-2]])
+    ax[1].set_yticks([i for i in range(8)], [str(item) for item in min_sample_leaf_list[:-1]])
+    ax[1].set_xticks([i for i in range(6)], [str(item) for item in max_leaf_nodes_list[:-2]])
+    ax[1].set_title('AUUC')
+    #plt.ylabel('Min. samples in node')
+    plt.xlabel('Max. number of leaf nodes')
+    #ax[1].set_xlabel('Max. number of leaf nodes')
+    plt.savefig('grid_search_aci_tree.pdf')
+    #plt.show()
+
+def parse_file(result_file='./results/uncertainty/uncertainty_tree_results.csv'):
+    """
     """
     import re
     import csv
@@ -382,7 +464,20 @@ def parse_result_file(result_file='./results/uncertainty/uncertainty_tree_result
              ('euce', float), ('muce', float), ('emse', float)]
     output = np.array(values, dtype=dtype)
     output = np.sort(output, order=['dataset', 'model', 'undersampling', 'size'])
+    return output
+
+
+def parse_result_file(result_file='./results/uncertainty/uncertainty_tree_results.csv'):
+    """
+    Function for parsing results from csv-file and printing them in
+    latex-format.
+
+    Args:
+    result_file (str): CSV-file containing results as writteh to file by
+     DatasetCollection.write_to_csv().
+    """
     # Print LATEX, latex table code:
+    output = parse_file(result_file)
     latex_code = """
 \\begin{table}[t]
 """
@@ -410,6 +505,56 @@ def parse_result_file(result_file='./results/uncertainty/uncertainty_tree_result
 \end{table}
 """
     print(latex_code)
+
+
+def plots():
+    # Plot
+    # Pick rows from output where
+    # Criteo 2 with undersampling
+    # Hillstrom and Starbucks without undersampling
+    # -skip rows corresponding to 500 observations
+    # -same plot for Criteo and the others? X-axis do not overlap.
+    # -separate plot for DGP?
+    result_file='./results/uncertainty/uncertainty_tree_results.csv'
+    output = parse_file(result_file)
+    tmp = [row for row in output if ((row['dataset'] == b'criteo2' and bool(row['undersampling']) is True) 
+        or (row['dataset'] in [b'hillstrom', b'starbucks'] and bool(row['undersampling']) is not True))
+        and row['size'] != 500]
+    criteo_aci = [item[6] for item in tmp[:7]]
+    criteo_size = [item[1] for item in tmp[:7]]
+    criteo_auuc = [item[5] for item in tmp[:7]]
+    hillstrom_aci = [item[6] for item in tmp[7:13]]
+    hillstrom_size = [item[1] for item in tmp[7:13]]
+    hillstrom_auuc = [item[5] for item in tmp[7:13]]
+    starbucks_aci = [item[6] for item in tmp[13:]]
+    starbucks_size = [item[1] for item in tmp[13:]]
+    starbucks_auuc = [item[5] for item in tmp[13:]]
+    result_file_2 = './results/uncertainty/uncertainty_gp_results.csv'
+    output = parse_file(result_file_2)
+    tmp = [row for row in output if row['dataset'] in [b'hillstrom', b'starbucks'] and row['size'] != 500]
+    hillstrom_aci_gp = [item[6] for item in tmp[:5]]
+    hillstrom_size_gp = [item[1] for item in tmp[:5]]
+    hillstrom_auuc_gp = [item[5] for item in tmp[:5]]
+    starbucks_aci_gp = [item[6] for item in tmp[5:]]
+    starbucks_size_gp = [item[1] for item in tmp[5:]]
+    starbucks_auuc_gp = [item[5] for item in tmp[5:]]
+    # DGP models:
+    plt.plot([i + 1 for i, _ in enumerate(hillstrom_aci_gp)], hillstrom_aci_gp, label='Hillstrom DGP', linestyle='solid', color='tab:blue')
+    plt.plot([i + 1 for i, _ in enumerate(starbucks_aci_gp)], starbucks_aci_gp, label='Starbucks DGP', linestyle='solid', color='tab:orange')
+    plt.scatter([i + 1 for i, _ in enumerate(hillstrom_aci_gp)], hillstrom_aci_gp, color='tab:blue')
+    plt.scatter([i + 1 for i, _ in enumerate(starbucks_aci_gp)], starbucks_aci_gp, color='tab:orange')
+    # Tree models:
+    plt.plot([i + 1 for i, _ in enumerate(hillstrom_aci)], hillstrom_aci, label='Hillstrom Tree', linestyle='dashed', color='tab:blue')
+    plt.plot([i + 1 for i, _ in enumerate(starbucks_aci)], starbucks_aci, label='Starbucks Tree', linestyle='dashed', color='tab:orange')
+    plt.scatter([i + 1 for i, _ in enumerate(hillstrom_aci)], hillstrom_aci, color='tab:blue')
+    plt.scatter([i + 1 for i, _ in enumerate(starbucks_aci)], starbucks_aci, color='tab:orange')
+    plt.xticks([i + 1 for i, _ in enumerate(starbucks_aci)], [str(item) for item in starbucks_size])
+    #plt.xscale('log')
+    plt.ylabel('Average CI (95%)')
+    plt.xlabel('Training set size')
+    plt.legend()
+    plt.savefig('average_ci.pdf')
+
 
 
 if __name__ == "__main__":
