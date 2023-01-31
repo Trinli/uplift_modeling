@@ -8,6 +8,7 @@ all models and none, div-by-k, and isotonic regression for calibration.
 """
 import os
 from pathlib import Path
+from itertools import product
 
 
 def generate_slurm_scripts(clear_old_scripts=False):
@@ -56,6 +57,7 @@ def generate_slurm_scripts(clear_old_scripts=False):
              'max_leafs': 12, 'honest': True, 'undersampling': False}
     ]
 
+    a_eps_list = [0.5, 0.1, 0.01, 0.001, 0.0001]
     # Store filenames to write to bash script later:
     files = []
 
@@ -96,7 +98,11 @@ def generate_slurm_scripts(clear_old_scripts=False):
         -Right now: smaller of treatment/control, #positive / max_leafs = 50
         --i.e. on average, leafs will contain 50 observations
         """
-        for size in sizes:
+        if model == 'tree':
+            iterable = product(sizes, [0])
+        elif model == 'gp':
+            iterable = product(sizes, a_eps_list)
+        for size, a_eps in iterable:
             # Model is gp or tree
             time = "23:59:59"
             mem = "64G"
@@ -106,7 +112,8 @@ def generate_slurm_scripts(clear_old_scripts=False):
                 part = 'medium'
             else:
                 raise Exepction('No valid model selected.')
-            text = """#!/bin/bash
+            if model == 'tree':
+                text = """#!/bin/bash
 #SBATCH --job-name={1}_{0}_{5}
 #SBATCH -o ./slurm_out/result_{1}_{0}_{5}.txt
 #SBATCH -M ukko
@@ -119,6 +126,23 @@ srun hostname
 srun sleep 5
 srun python -m experiments.uncertainty_experiments {1} {0} {5} {6} {7} {8}
 """.format(dataset, model, time, mem, part, size, max_leaf, honest, undersampling)
+            elif model == 'gp':
+                text = """#!/bin/bash
+#SBATCH --job-name={1}_{0}_{5}
+#SBATCH -o ./slurm_out/result_{1}_{0}_{5}.txt
+#SBATCH -M ukko
+#SBATCH -c 1
+#SBATCH -t {2}
+#SBATCH --mem={3}
+#SBATCH -p {4}
+#SBATCH --gres=gpu:1
+#SBATCH --constraint=[v100]
+export PYTHONPATH=$PYTHONPATH:.
+srun hostname
+srun sleep 5
+srun python -m experiments.uncertainty_experiments {1} {0} {5} {6}
+""".format(dataset, model, time, mem, part, size, a_eps)
+
             # Write text to file:
             tmp_filename = './tmp/slurm_{1}_{0}_{2}_{3}_{4}.job'.format(
                 dataset, model, size, item['honest'], item['undersampling'])

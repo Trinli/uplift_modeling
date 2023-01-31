@@ -77,7 +77,15 @@ def load_object(file_name='tree_model.pickle'):
 
 
 def train_dirichlet_gp(data, file_name_stub="gp_tmp",
-                       dataset=None, size=None):
+                       dataset=None, size=None, a_eps=0.1):
+    """
+    Args:
+    data (data.load_data.DatasetCollection): Dataset to be used.
+    file_name_stub (str): Used for storing results
+    dataset (str): Used to store metrics
+    size (int): Used to store metrics
+    a_eps (float): Prior for gamma distributions.
+    """
     # Import in function because this mess should not be imported unless
     # absolutely necessary (compatible with only a very specific version
     # of python, tensorflow, gpflow etc.).
@@ -91,7 +99,7 @@ def train_dirichlet_gp(data, file_name_stub="gp_tmp",
     import models.dirichlet_gp as GPD
     # Train Dirichlet Gaussian Process-model
     gp_model = GPD.DirichletUplift()
-    gp_model.fit(X_t, y_t, X_c, y_c)
+    gp_model.fit(X_t, y_t, X_c, y_c, a_eps=a_eps)  # Pass a_eps also?
 
     # Estimate metrics
     gp_pred = gp_model.predict_uplift(data['testing_set']['X'])
@@ -612,32 +620,39 @@ if __name__ == "__main__":
     size = int(parameters[3])  # [1k, 5k, 10k, 25k, 50k, 100k, 250k, 500k, 1M]
     # Check that size is equal or below training + validation set size to
     # not use testing set for training.
-    try:
-        max_leaf_nodes = int(parameters[4])
-    except:
-        # If not available, not setting it.
-        max_leaf_nodes = None
+    if model == 'tree':
+        try:
+            max_leaf_nodes = int(parameters[4])
+        except:
+            # If not available, not setting it.
+            max_leaf_nodes = None
 
-    try:
-        honest = parameters[5]
-        if honest == 'True':
-            # Everything is read in as a string
-            # Set to boolean true.
-            honest = True
-        else:
-            honest = False
-    except:
-        honest = False  ## "False" as default?
+        try:
+            honest = parameters[5]
+            if honest == 'True':
+                # Everything is read in as a string
+                # Set to boolean true.
+                honest = True
+            else:
+                honest = False
+        except:
+            honest = False  ## "False" as default?
 
-    try:
-        undersampling = parameters[6]
-        if undersampling == 'True':
-            # String when read from command line. Change to bool:
-            undersampling = True
-        else:
+        try:
+            undersampling = parameters[6]
+            if undersampling == 'True':
+                # String when read from command line. Change to bool:
+                undersampling = True
+            else:
+                undersampling = False
+        except:
             undersampling = False
-    except:
-        undersampling = False
+    elif model == 'gp':
+        try:
+            a_eps = float(parameters[4])
+        except:
+            print("No a_eps provided. Setting a_eps=0.1.")
+            a_eps = 0.1
 
     tmp_n = data['training_set']['X'].shape[0] + data['validation_set']['X'].shape[0]
     assert size <= tmp_n, "Cannot run experiment with training set size {} (not enough observations).".format(size)
@@ -653,12 +668,12 @@ if __name__ == "__main__":
     if model == 'tree':
         file_name_stub = dataset + "_" + str(size) + '_' + str(max_leaf_nodes) + '_' + str(honest) + '_' + str(undersampling)
     else:
-        file_name_stub = dataset + "_" + str(size)  # Should contain dataset and downsampling, maybe leaf size for tree    
+        file_name_stub = dataset + "_" + str(size) + '_' + 'a_eps_{}'.format(a_eps) # Should contain dataset and downsampling, maybe leaf size for tree    
     # Or actually, write to same file, just pass appropriate parameters to the metrics-object!
 
     # 3. Pass on name stub for all files produced. Maybe also result file.
     if model == 'gp':
-        tmp = train_dirichlet_gp(data, file_name_stub, dataset, size)
+        tmp = train_dirichlet_gp(data, file_name_stub, dataset, size, a_eps=a_eps)
     elif model == 'tree':
         # Makes no sense training with 1k observations if leaf size is 400.
         tmp = train_honest_tree(data, file_name_stub, dataset, size,
