@@ -144,8 +144,12 @@ srun python -m experiments.uncertainty_experiments {1} {0} {5} {6}
 """.format(dataset, model, time, mem, part, size, a_eps)
 
             # Write text to file:
-            tmp_filename = './tmp/slurm_{1}_{0}_{2}_{3}_{4}.job'.format(
-                dataset, model, size, item['honest'], item['undersampling'])
+            if model == 'tree':
+                tmp_filename = './tmp/slurm_{1}_{0}_{2}_{3}_{4}.job'.format(
+                    dataset, model, size, item['honest'], item['undersampling'])
+            elif model == 'gp':
+                tmp_filename = './tmp/slurm_{1}_{0}_{2}_{3}.job'.format(
+                    dataset, model, size, a_eps)
             with open(tmp_filename, 'w') as handle:
                 handle.write(text)
             # Add filename to list to later write to bash-script.
