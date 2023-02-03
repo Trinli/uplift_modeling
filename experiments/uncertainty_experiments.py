@@ -50,6 +50,7 @@ import data.load_data as ld
 import metrics.uplift_metrics as um
 import models.honest_uplift_tree as honest_tree
 import pickle
+import models.gpy_dirichlet as GPY
 
 
 def save_object(object, file_name='object.pickle'):
@@ -252,6 +253,260 @@ def dirichlet_gp_auuc_uncertainty(data, file_name_stub="gp_tmp",
     # At least add the AUUC for the "normal" metric.
 
 
+def train_dirichlet_gpy(data, file_name_stub="gpy_tmp",
+                        dataset=None, size=None, a_eps=0.1):
+    """
+    In contrast to the previous. this one uses the implementation based
+    on Gpytorch!! Compatible with modern environments etc.
+
+    Args:
+    data (data.load_data.DatasetCollection): Dataset to be used.
+    file_name_stub (str): Used for storing results
+    dataset (str): Used to store metrics
+    size (int): Used to store metrics
+    a_eps (float): Prior for gamma distributions.
+    """
+    # Import in function because this mess should not be imported unless
+    # absolutely necessary (compatible with only a very specific version
+    # of python, tensorflow, gpflow etc.).
+    # Full training set for hillstrom has 10596 control observations and
+    # 10710 treatment observations. Can use full data! :)
+    print("This Dirichlet-GP is based on the GPytorch library!")
+    X_t = data['gp_train', None, 'treatment']['X']
+    y_t = data['gp_train', None, 'treatment']['y']
+    X_c = data['gp_train', None, 'control']['X']
+    y_c = data['gp_train', None, 'control']['y']
+
+    #import models.dirichlet_gp as GPD
+    # Train Dirichlet Gaussian Process-model
+    gp_model = GPY.DirichletGPUplift()
+    gp_model.fit(X_t, y_t, X_c, y_c, alpha_eps=a_eps)
+
+    # Estimate metrics
+    gp_pred = gp_model.predict_uplift(data['testing_set']['X'])
+    gp_pred = gp_pred.astype(np.float32)
+    gp_average_width = gp_model.mean_credible_interval_width(data['testing_set']['X'], 0.95)
+    print("Average credible interval width for D-GPy: {}".format(gp_average_width))
+    gp_metrics = um.UpliftMetrics(data['testing_set']['y'], gp_pred, data['testing_set']['t'],
+                                  test_description="Uncertainty with D-GP", algorithm="Dirichlet-GP",
+                                  dataset=dataset + "_" + str(size),
+                                  parameters=gp_average_width)  # Storing average width!
+    gp_metrics.write_to_csv("./results/uncertainty_gpy_results.csv")
+    # Store model
+    # save_object(gp_model, file_name_stub + "_gp_model.pickle")  # This GP cannot be serialized with pickle nor dill.
+
+    print(gp_metrics)
+    # Maybe test whether this metric can be reliably estimated with only 100 MC
+    # observations per testing observation rather than 1000.
+
+    # Visualizations
+    # "Three" observations
+    # First uncertainty of treatment response, then uncertainty of control response,
+    # and lastly uncertainty of uplift. As both the tree and the gaussian process
+    # are kind of double classifiers, the uncertainties for the response models
+    # can easily be estimated.
+    #idx = [np.argmax(gp_pred)]
+    idx = [4016, 16028, 17061]
+    print("Testing set observation with largest tau at {}".format(idx))
+    # Print both predictions and uncertainty for this.
+
+    # Plot 10 items _and_ a sample with large tau:
+    for i in [j for j in range(10)] + idx:
+        test_item = data['testing_set']['X'][i, :].reshape((1, -1))
+        # Histogram of uncertainty of prediction with treatment
+        #gp_params = gp_model.model_t.predict_params(test_item)
+        # mc_samples = gp_model.model_t.uncertainty_of_prediction(gp_params['fmu'],
+        #                                                         gp_params['fs2'])
+        mc_samples = gp_model.model_t.generate_sample(test_item)
+        # Distribution of uncertainty for prediction for observation if treated
+        #plt.hist(mc_samples[:, 1], bins=400, range=(0, 1))  # Column 1 contains estimates for the positive class.
+        # HOW IS BANDWIDTH CHOSEN?
+        kde = KernelDensity(kernel='gaussian', bandwidth=0.04).fit(mc_samples[:, 1].reshape(-1, 1))
+        X_plot = np.linspace(0, 1, 1000)[:, np.newaxis]
+        log_dens = kde.score_samples(X_plot)
+        # Initialize plot
+        fig, ax = plt.subplots(1, 2, figsize=(8, 2))
+        #fig.subplots_adjust(hspace=0.05, wspace=0.05)
+        #ax[0, 0].fill(X_plot[:, 0], np.exp(log_dens))
+        ax[0].plot(X_plot[:, 0], np.exp(log_dens), label="$p_{t=1}$")  # Width 0 to 0.5?
+        ax[0].set_xlim([0, 0.5])
+        #ax[0, 0].text(-3.5, 0.31, "p(y=1|x, t=1), Dirichlet GP")
+
+        # Uncertainty of p(y=1|x, t=0) for D-GP:
+        # gp_params = gp_model.model_c.predict_params(test_item.reshape((1, -1)))
+        # mc_samples = gp_model.model_c.uncertainty_of_prediction(gp_params['fmu'],
+        #                                                         gp_params['fs2'])
+        mc_samples = gp_model.model_c.generate_sample(test_item)
+        # Distribution of uncertainty for prediction for observation if treated
+        #plt.hist(mc_samples[:, 1], bins=400, range=(0, 1))  # Column 1 contains estimates for the positive class.
+        # HOW IS BANDWIDTH CHOSEN?
+        kde = KernelDensity(kernel='gaussian', bandwidth=0.04).fit(mc_samples[:, 1].reshape(-1, 1))
+        log_dens = kde.score_samples(X_plot)
+        #fig.subplots_adjust(hspace=0.05, wspace=0.05)
+        #ax[1, 0].fill(X_plot[:, 0], np.exp(log_dens))
+        ax[0].plot(X_plot[:, 0], np.exp(log_dens), label="$p_{t=0}$")
+        #ax[1, 0].text(-3.5, 0.31, "p(y=1|x, t=0), Dirichlet GP")
+
+        # Uncertainty for D-GP
+        mc_samples = gp_model.generate_sample(test_item)
+        kde = KernelDensity(kernel='gaussian', bandwidth=0.08).fit(np.array(mc_samples).reshape(-1, 1))
+        X_plot = np.linspace(-1, 1, 2000)[:, np.newaxis]
+        log_dens = kde.score_samples(X_plot)
+        #fig.subplots_adjust(hspace=0.05, wspace=0.05)
+        #ax[2, 0].fill(X_plot[:, 0], np.exp(log_dens))
+        ax[1].plot(X_plot[:, 0], np.exp(log_dens), label="$u$")
+        ax[1].set_xlim([-.5, .5])
+        ax[1].axvline(0, color='black', linewidth=0.75)
+        ax[0].legend()
+        ax[1].legend()
+        plt.savefig("./figures/" + file_name_stub + "_" + str(i) + '_gpy_uncertainty.pdf')  # What format is required?
+        #plt.savefig("./figures/gp.pdf")  # What format is required?
+        # plt.show()
+        plt.clf()
+
+    # Uplift vs. credible interval width
+    fig, ax = plt.subplots(1, 2, figsize=(8, 4))
+    plt.clf()
+    credible_intervals = gp_model.get_credible_intervals(data['testing_set']['X'])
+
+    tmp = [item['width'] for item in credible_intervals]
+    plt.scatter(gp_pred, tmp, alpha=0.2)
+    plt.xlabel(r"$\hat{\tau}(x)$")
+    plt.savefig("./figures/" + file_name_stub + "_gpy_scatter.pdf")
+    #plt.savefig("./figures/gp_scatter.pdf")
+    plt.clf()
+
+    plt.hist(gp_pred, bins=100)
+    plt.xlabel(r"$\hat{\tau}(x)$")
+    plt.ylabel("#")
+    plt.savefig("./figures/" + file_name_stub + str(i) + "gpy_tau_histogram.pdf")
+    plt.clf()
+
+    return gp_metrics, gp_average_width
+
+
+def train_gp(data, file_name_stub="gp_tmp", 
+              dataset=None, size=None, a_eps=0.1):
+    """
+    Function for training uplift model with regular GP-classification
+    models (rather than the Dirichlet-based GP that seems fishy).
+
+    Args:
+    data (data.load_data.DatasetCollection): Dataset to be used.
+    file_name_stub (str): Used for storing results
+    dataset (str): Used to store metrics
+    size (int): Used to store metrics
+    a_eps (float): Prior for gamma distributions.
+    """
+    # Full training set for hillstrom has 10596 control observations and
+    # 10710 treatment observations. Can use full data! :)
+    X_t = data['gp_train', None, 'treatment']['X']
+    y_t = data['gp_train', None, 'treatment']['y']
+    X_c = data['gp_train', None, 'control']['X']
+    y_c = data['gp_train', None, 'control']['y']
+
+    #import models.dirichlet_gp as GPD
+    #sklearn.gaussian_process.GaussianProcessClassifier as GP  # Need to make an uplift model with these.
+    import models.gp_uplift as GP
+    # Train Dirichlet Gaussian Process-model
+    gp_model = GP.GaussianProcessUplift()
+    gp_model.fit(X_t, y_t, X_c, y_c)
+
+    # Estimate metrics
+    gp_pred = gp_model.predict_uplift(data['testing_set']['X'])
+    #gp_pred = gp_pred.astype(np.float32)
+    gp_average_width = gp_model.mean_credible_interval_width(data['testing_set']['X'], 0.95)
+    print("Average credible interval width for D-GP: {}".format(gp_average_width))
+    gp_metrics = um.UpliftMetrics(data['testing_set']['y'], gp_pred, data['testing_set']['t'],
+                                  test_description="Uncertainty with D-GP", algorithm="Dirichlet-GP",
+                                  dataset=dataset + "_" + str(size),
+                                  parameters=gp_average_width)  # Storing average width!
+    gp_metrics.write_to_csv("./results/uncertainty_gp_results.csv")
+    # Store model
+    # save_object(gp_model, file_name_stub + "_gp_model.pickle")  # This GP cannot be serialized with pickle nor dill.
+
+    print(gp_metrics)
+    # Maybe test whether this metric can be reliably estimated with only 100 MC
+    # observations per testing observation rather than 1000.
+
+    # Visualizations
+    # "Three" observations
+    # First uncertainty of treatment response, then uncertainty of control response,
+    # and lastly uncertainty of uplift. As both the tree and the gaussian process
+    # are kind of double classifiers, the uncertainties for the response models
+    # can easily be estimated.
+    for i in range(10):
+        test_item = data['testing_set']['X'][i, :].reshape((1, -1))
+        # Histogram of uncertainty of prediction with treatment
+        gp_params = gp_model.model_t.predict_params(test_item)
+        mc_samples = gp_model.model_t.uncertainty_of_prediction(gp_params['fmu'],
+                                                                gp_params['fs2'])
+        # Distribution of uncertainty for prediction for observation if treated
+        #plt.hist(mc_samples[:, 1], bins=400, range=(0, 1))  # Column 1 contains estimates for the positive class.
+        # HOW IS BANDWIDTH CHOSEN?
+        kde = KernelDensity(kernel='gaussian', bandwidth=0.02).fit(mc_samples[:, 1].reshape(-1, 1))
+        X_plot = np.linspace(0, 1, 1000)[:, np.newaxis]
+        log_dens = kde.score_samples(X_plot)
+        # Initialize plot
+        fig, ax = plt.subplots(1, 2, figsize=(8, 2))
+        #fig.subplots_adjust(hspace=0.05, wspace=0.05)
+        #ax[0, 0].fill(X_plot[:, 0], np.exp(log_dens))
+        ax[0].plot(X_plot[:, 0], np.exp(log_dens), label="$p_{t=1}$")  # Width 0 to 0.5?
+        ax[0].set_xlim([0, 0.5])
+        #ax[0, 0].text(-3.5, 0.31, "p(y=1|x, t=1), Dirichlet GP")
+
+        # Uncertainty of p(y=1|x, t=0) for D-GP:
+        gp_params = gp_model.model_c.predict_params(test_item.reshape((1, -1)))
+        mc_samples = gp_model.model_c.uncertainty_of_prediction(gp_params['fmu'],
+                                                                gp_params['fs2'])
+        # Distribution of uncertainty for prediction for observation if treated
+        #plt.hist(mc_samples[:, 1], bins=400, range=(0, 1))  # Column 1 contains estimates for the positive class.
+        # HOW IS BANDWIDTH CHOSEN?
+        kde = KernelDensity(kernel='gaussian', bandwidth=0.02).fit(mc_samples[:, 1].reshape(-1, 1))
+        log_dens = kde.score_samples(X_plot)
+        #fig.subplots_adjust(hspace=0.05, wspace=0.05)
+        #ax[1, 0].fill(X_plot[:, 0], np.exp(log_dens))
+        ax[0].plot(X_plot[:, 0], np.exp(log_dens), label="$p_{t=0}$")
+        #ax[1, 0].text(-3.5, 0.31, "p(y=1|x, t=0), Dirichlet GP")
+
+        # Uncertainty for D-GP
+        mc_samples = gp_model.predict_uncertainty(test_item)
+        kde = KernelDensity(kernel='gaussian', bandwidth=0.02).fit(np.array(mc_samples).reshape(-1, 1))
+        X_plot = np.linspace(-1, 1, 2000)[:, np.newaxis]
+        log_dens = kde.score_samples(X_plot)
+        #fig.subplots_adjust(hspace=0.05, wspace=0.05)
+        #ax[2, 0].fill(X_plot[:, 0], np.exp(log_dens))
+        ax[1].plot(X_plot[:, 0], np.exp(log_dens), label="$u$")
+        ax[1].set_xlim([-.5, .5])
+        ax[1].axvline(0, color='black', linewidth=0.75)
+        ax[0].legend()
+        ax[1].legend()
+        plt.savefig("./figures/" + file_name_stub + "_" + str(i) + '_gp_uncertainty.pdf')  # What format is required?
+        #plt.savefig("./figures/gp.pdf")  # What format is required?
+        # plt.show()
+        plt.clf()
+
+    # Uplift vs. credible interval width
+    fig, ax = plt.subplots(1, 2, figsize=(8, 4))
+    plt.clf()
+    credible_intervals = gp_model.get_credible_intervals(data['testing_set']['X'])
+    tmp = [item['width'] for item in credible_intervals]
+    plt.scatter(gp_pred, tmp, alpha=0.2)
+    plt.xlabel(r"$\hat{\tau}(x)$")
+    plt.savefig("./figures/" + file_name_stub + "_gp_scatter.pdf")
+    #plt.savefig("./figures/gp_scatter.pdf")
+    plt.clf()
+
+    plt.hist(gp_pred, bins=100)
+    plt.xlabel(r"$\hat{\tau}(x)$")
+    plt.ylabel("#")
+    plt.savefig("./figures/" + file_name_stub + str(i) + "gp_tau_histogram.pdf")
+    plt.clf()
+
+    return gp_metrics, gp_average_width
+
+
+
 def train_honest_tree(data, file_name_stub="tree_tmp",
                       dataset=None, size=None,
                       min_samples_leaf=None,
@@ -297,8 +552,8 @@ def train_honest_tree(data, file_name_stub="tree_tmp",
     # Find observation with "large" uplift and plot that. Need to find a "large" through one single run, and then
     # use that same for other runs.
     # Find max in first 100k tree_pred
-    #idx = np.argmax(tree_tau[:100000])
-    idx = 19  # Found this by running line above with 100 000 observations on Criteo 2.
+    idx = np.argmax(tree_tau[:100000])
+    #idx = 19  # Found this by running line above with 100 000 observations on Criteo 2.
     print("Testing set observation with largest tau at {}".format(idx))
     # Print both predictions and uncertainty for this.
 
@@ -312,7 +567,7 @@ def train_honest_tree(data, file_name_stub="tree_tmp",
         ax[0].plot(X_plot, beta.pdf(X_plot,
             tree_params[0]['alpha_t'], tree_params[0]['beta_t']),
                 label="$p_{t=1}$")  # We want to change the scale here.
-        #ax[0].set_xlim([0, .5])
+        ax[0].set_xlim([0, .5])
         #ax[0, 1].text(-3.5, 0.31, "p(y=1|x, t=1), Honest Tree")
 
         ax[0].plot(X_plot, beta.pdf(X_plot,
@@ -320,11 +575,11 @@ def train_honest_tree(data, file_name_stub="tree_tmp",
 
         # Uncertainty of uplift: This one needs a different scale for the x-axis!!
         tree_samples = tree_model.generate_sample(test_item)
-        kde = KernelDensity(kernel='gaussian', bandwidth=0.05).fit(tree_samples.reshape(-1, 1))
+        kde = KernelDensity(kernel='gaussian', bandwidth=0.02).fit(tree_samples.reshape(-1, 1))
         X_plot = np.linspace(-1, 1, 2000)[:, np.newaxis]
         log_dens = kde.score_samples(X_plot)
         ax[1].plot(X_plot[:, 0], np.exp(log_dens), label="$u$")
-        #ax[1].set_xlim([-.5, .5])
+        ax[1].set_xlim([-.5, .5])
         # ax[1].spines['left'].set_position('zero')  # This was not it. Scale to the left, but line through origo.
         ax[1].axvline(0, color='black', linewidth=0.75)
 
@@ -337,13 +592,16 @@ def train_honest_tree(data, file_name_stub="tree_tmp",
         plt.savefig("./figures/" + file_name_stub + "_" + str(i) + '_tree_uncertainty.pdf')  # What format is required?
         # plt.show()
         plt.clf()
+        plt.hist(tree_samples)
+        plt.savefig("./figures/tmp/" + file_name_stub + "_" + str(i) + '_tree_uncertainty_histogram.pdf')  # What format is required?
+        plt.clf()
 
     fig, ax = plt.subplots(1, 2, figsize=(8, 4))
     plt.clf()
     # Scatter plot for predictions vs. width of credible intervals
     tree_width = np.array([item['hpd']['width'] for item in tree_pred])
     plt.scatter(tree_tau, tree_width, alpha=0.5)
-    plt.xlabel(r'$\hat{\tau}(x)$')
+    plt.xlabel(r"$\hat{\tau}(x)$")
     plt.ylabel("95% credible interval width")
     plt.savefig("./figures/" + file_name_stub + "_tree_scatter.pdf")
     plt.clf()
@@ -547,15 +805,15 @@ def plots():
     starbucks_aci = [item[6] for item in tmp[13:]]
     starbucks_size = [item[1] for item in tmp[13:]]
     starbucks_auuc = [item[5] for item in tmp[13:]]
-    result_file_2 = './results/uncertainty/uncertainty_gp_results.csv'
+    result_file_2 = './results/uncertainty/uncertainty_gpy_results.csv'  # now GPY-results!
     output = parse_file(result_file_2)
     tmp = [row for row in output if row['dataset'] in [b'hillstrom', b'starbucks'] and row['size'] != 500]
-    hillstrom_aci_gp = [item[6] for item in tmp[:5]]
-    hillstrom_size_gp = [item[1] for item in tmp[:5]]
-    hillstrom_auuc_gp = [item[5] for item in tmp[:5]]
-    starbucks_aci_gp = [item[6] for item in tmp[5:]]
-    starbucks_size_gp = [item[1] for item in tmp[5:]]
-    starbucks_auuc_gp = [item[5] for item in tmp[5:]]
+    hillstrom_aci_gp = [item[6] for item in tmp[:6]]
+    hillstrom_size_gp = [item[1] for item in tmp[:6]]
+    hillstrom_auuc_gp = [item[5] for item in tmp[:6]]
+    starbucks_aci_gp = [item[6] for item in tmp[6:]]
+    starbucks_size_gp = [item[1] for item in tmp[6:]]
+    starbucks_auuc_gp = [item[5] for item in tmp[6:]]
     # DGP models:
     plt.plot([i + 1 for i, _ in enumerate(hillstrom_aci_gp)], hillstrom_aci_gp, label='Hillstrom DGP', linestyle='solid', color='tab:blue')
     plt.plot([i + 1 for i, _ in enumerate(starbucks_aci_gp)], starbucks_aci_gp, label='Starbucks DGP', linestyle='solid', color='tab:orange')
@@ -571,13 +829,14 @@ def plots():
     plt.ylabel('Average CI (95%)')
     plt.xlabel('Training set size')
     plt.legend()
-    plt.savefig('average_ci.pdf')
+    plt.savefig('average_ci_tree_gpy.pdf')
 
 
 
 if __name__ == "__main__":
     # 0. Collect some args and run program accordingly.
     print("Use as 'python -m experiments.uncertainty_experiments model dataset training_set_size max_leaf_nodes honest undersampling")
+    print("OR 'python -m experiments.uncertainty_experiments model dataset training_set_size alpha_epx")
     print("OR 'python -m experiments.uncertainty_experiments metrics result_file.csv'")
     parameters = sys.argv
     # 1. Load appropriate dataset
@@ -647,7 +906,7 @@ if __name__ == "__main__":
                 undersampling = False
         except:
             undersampling = False
-    elif model == 'gp':
+    elif model == 'gp' or model == 'gpy':
         try:
             a_eps = float(parameters[4])
         except:
@@ -656,29 +915,35 @@ if __name__ == "__main__":
 
     tmp_n = data['training_set']['X'].shape[0] + data['validation_set']['X'].shape[0]
     assert size <= tmp_n, "Cannot run experiment with training set size {} (not enough observations).".format(size)
-    if honest:
-        data.add_set('tree_train', 0, int(size/2))
-        data.add_set('tree_val', int(size/2), size)
-    else:
-        data.add_set('tree_train', 0, size)
-    data.add_set('gp_train', 0, size)
+    if model == 'tree':
+        if honest:
+            data.add_set('tree_train', 0, int(size/2))
+            data.add_set('tree_val', int(size/2), size)
+        else:
+            data.add_set('tree_train', 0, size)
+    elif model == 'gp' or model == 'gpy':
+        data.add_set('gp_train', 0, size)
 
     # 2. Call appropriate function (model)
     # -- parameters, e.g. leaf size for tree, names for output files
     if model == 'tree':
         file_name_stub = dataset + "_" + str(size) + '_' + str(max_leaf_nodes) + '_' + str(honest) + '_' + str(undersampling)
-    else:
+    elif model == 'gp':
         file_name_stub = dataset + "_" + str(size) + '_' + 'a_eps_{}'.format(a_eps) # Should contain dataset and downsampling, maybe leaf size for tree    
+    elif model == 'gpy':
+        file_name_stub = dataset + "_" + str(size) + '_' + '_gpy_a_eps_{}'.format(a_eps) # Should contain dataset and downsampling, maybe leaf size for tree    
     # Or actually, write to same file, just pass appropriate parameters to the metrics-object!
 
     # 3. Pass on name stub for all files produced. Maybe also result file.
     if model == 'gp':
         tmp = train_dirichlet_gp(data, file_name_stub, dataset, size, a_eps=a_eps)
+    elif model == 'gpy':
+        tmp = train_dirichlet_gpy(data, file_name_stub, dataset, size, a_eps=a_eps)
     elif model == 'tree':
         # Makes no sense training with 1k observations if leaf size is 400.
         tmp = train_honest_tree(data, file_name_stub, dataset, size,
-                                honest, max_leaf_nodes=max_leaf_nodes,
-                                undersampling=undersampling)
+                                honest=honest, max_leaf_nodes=max_leaf_nodes,
+                                undersampling=undersampling)  # 'honest' was being passed in position for min_sample_leaf
     elif model == 'auuc_uncertainty':
         tmp = dirichlet_gp_auuc_uncertainty(data, file_name_stub,
                                             dataset, size, n_iterations=2000)
