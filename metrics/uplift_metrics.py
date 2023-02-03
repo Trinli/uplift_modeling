@@ -166,8 +166,9 @@ class UpliftMetrics():
                                                   k=self.k)
         self.euce = tmp_2[0]  # Extract EUCE from tuple
         self.muce = tmp_2[1]  # Extract MUCE from tuple
-        self.kendalls_tau = kendalls_uplift_tau(data_class, data_prob, data_group,
-                                                k=self.k)
+        # self.kendalls_tau = kendalls_uplift_tau(data_class, data_prob, data_group,
+        #                                         k=self.k)
+        self.kendalls_tau = None  # There seems to be some bug in this metric.
         self.unique_scores = len(np.unique(data_prob))
         self.samples = len(data_prob)
         self.adjusted_e_mse = estimate_adjusted_e_mse(data_class, data_prob, data_group)
