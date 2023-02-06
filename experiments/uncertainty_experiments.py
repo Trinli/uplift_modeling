@@ -254,7 +254,8 @@ def dirichlet_gp_auuc_uncertainty(data, file_name_stub="gp_tmp",
 
 
 def train_dirichlet_gpy(data, file_name_stub="gpy_tmp",
-                        dataset=None, size=None, a_eps=0.1):
+                        dataset=None, size=None, a_eps=0.1,
+                        plots=True):
     """
     In contrast to the previous. this one uses the implementation based
     on Gpytorch!! Compatible with modern environments etc.
@@ -265,6 +266,7 @@ def train_dirichlet_gpy(data, file_name_stub="gpy_tmp",
     dataset (str): Used to store metrics
     size (int): Used to store metrics
     a_eps (float): Prior for gamma distributions.
+    plots (bool): If True, will produce plots.
     """
     # Import in function because this mess should not be imported unless
     # absolutely necessary (compatible with only a very specific version
@@ -310,77 +312,78 @@ def train_dirichlet_gpy(data, file_name_stub="gpy_tmp",
     print("Testing set observation with largest tau at {}".format(idx))
     # Print both predictions and uncertainty for this.
 
-    # Plot 10 items _and_ a sample with large tau:
-    for i in [j for j in range(10)] + idx:
-        test_item = data['testing_set']['X'][i, :].reshape((1, -1))
-        # Histogram of uncertainty of prediction with treatment
-        #gp_params = gp_model.model_t.predict_params(test_item)
-        # mc_samples = gp_model.model_t.uncertainty_of_prediction(gp_params['fmu'],
-        #                                                         gp_params['fs2'])
-        mc_samples = gp_model.model_t.generate_sample(test_item)
-        # Distribution of uncertainty for prediction for observation if treated
-        #plt.hist(mc_samples[:, 1], bins=400, range=(0, 1))  # Column 1 contains estimates for the positive class.
-        # HOW IS BANDWIDTH CHOSEN?
-        kde = KernelDensity(kernel='gaussian', bandwidth=0.04).fit(mc_samples[:, 1].reshape(-1, 1))
-        X_plot = np.linspace(0, 1, 1000)[:, np.newaxis]
-        log_dens = kde.score_samples(X_plot)
-        # Initialize plot
-        fig, ax = plt.subplots(1, 2, figsize=(8, 2))
-        #fig.subplots_adjust(hspace=0.05, wspace=0.05)
-        #ax[0, 0].fill(X_plot[:, 0], np.exp(log_dens))
-        ax[0].plot(X_plot[:, 0], np.exp(log_dens), label="$p_{t=1}$")  # Width 0 to 0.5?
-        ax[0].set_xlim([0, 0.5])
-        #ax[0, 0].text(-3.5, 0.31, "p(y=1|x, t=1), Dirichlet GP")
+    if plots:
+        # Plot 10 items _and_ a sample with large tau:
+        for i in [j for j in range(10)] + idx:
+            test_item = data['testing_set']['X'][i, :].reshape((1, -1))
+            # Histogram of uncertainty of prediction with treatment
+            #gp_params = gp_model.model_t.predict_params(test_item)
+            # mc_samples = gp_model.model_t.uncertainty_of_prediction(gp_params['fmu'],
+            #                                                         gp_params['fs2'])
+            mc_samples = gp_model.model_t.generate_sample(test_item)
+            # Distribution of uncertainty for prediction for observation if treated
+            #plt.hist(mc_samples[:, 1], bins=400, range=(0, 1))  # Column 1 contains estimates for the positive class.
+            # HOW IS BANDWIDTH CHOSEN?
+            kde = KernelDensity(kernel='gaussian', bandwidth=0.04).fit(mc_samples[:, 1].reshape(-1, 1))
+            X_plot = np.linspace(0, 1, 1000)[:, np.newaxis]
+            log_dens = kde.score_samples(X_plot)
+            # Initialize plot
+            fig, ax = plt.subplots(1, 2, figsize=(8, 2))
+            #fig.subplots_adjust(hspace=0.05, wspace=0.05)
+            #ax[0, 0].fill(X_plot[:, 0], np.exp(log_dens))
+            ax[0].plot(X_plot[:, 0], np.exp(log_dens), label="$p_{t=1}$")  # Width 0 to 0.5?
+            ax[0].set_xlim([0, 0.5])
+            #ax[0, 0].text(-3.5, 0.31, "p(y=1|x, t=1), Dirichlet GP")
 
-        # Uncertainty of p(y=1|x, t=0) for D-GP:
-        # gp_params = gp_model.model_c.predict_params(test_item.reshape((1, -1)))
-        # mc_samples = gp_model.model_c.uncertainty_of_prediction(gp_params['fmu'],
-        #                                                         gp_params['fs2'])
-        mc_samples = gp_model.model_c.generate_sample(test_item)
-        # Distribution of uncertainty for prediction for observation if treated
-        #plt.hist(mc_samples[:, 1], bins=400, range=(0, 1))  # Column 1 contains estimates for the positive class.
-        # HOW IS BANDWIDTH CHOSEN?
-        kde = KernelDensity(kernel='gaussian', bandwidth=0.04).fit(mc_samples[:, 1].reshape(-1, 1))
-        log_dens = kde.score_samples(X_plot)
-        #fig.subplots_adjust(hspace=0.05, wspace=0.05)
-        #ax[1, 0].fill(X_plot[:, 0], np.exp(log_dens))
-        ax[0].plot(X_plot[:, 0], np.exp(log_dens), label="$p_{t=0}$")
-        #ax[1, 0].text(-3.5, 0.31, "p(y=1|x, t=0), Dirichlet GP")
+            # Uncertainty of p(y=1|x, t=0) for D-GP:
+            # gp_params = gp_model.model_c.predict_params(test_item.reshape((1, -1)))
+            # mc_samples = gp_model.model_c.uncertainty_of_prediction(gp_params['fmu'],
+            #                                                         gp_params['fs2'])
+            mc_samples = gp_model.model_c.generate_sample(test_item)
+            # Distribution of uncertainty for prediction for observation if treated
+            #plt.hist(mc_samples[:, 1], bins=400, range=(0, 1))  # Column 1 contains estimates for the positive class.
+            # HOW IS BANDWIDTH CHOSEN?
+            kde = KernelDensity(kernel='gaussian', bandwidth=0.04).fit(mc_samples[:, 1].reshape(-1, 1))
+            log_dens = kde.score_samples(X_plot)
+            #fig.subplots_adjust(hspace=0.05, wspace=0.05)
+            #ax[1, 0].fill(X_plot[:, 0], np.exp(log_dens))
+            ax[0].plot(X_plot[:, 0], np.exp(log_dens), label="$p_{t=0}$")
+            #ax[1, 0].text(-3.5, 0.31, "p(y=1|x, t=0), Dirichlet GP")
 
-        # Uncertainty for D-GP
-        mc_samples = gp_model.generate_sample(test_item)
-        kde = KernelDensity(kernel='gaussian', bandwidth=0.08).fit(np.array(mc_samples).reshape(-1, 1))
-        X_plot = np.linspace(-1, 1, 2000)[:, np.newaxis]
-        log_dens = kde.score_samples(X_plot)
-        #fig.subplots_adjust(hspace=0.05, wspace=0.05)
-        #ax[2, 0].fill(X_plot[:, 0], np.exp(log_dens))
-        ax[1].plot(X_plot[:, 0], np.exp(log_dens), label="$u$")
-        ax[1].set_xlim([-.5, .5])
-        ax[1].axvline(0, color='black', linewidth=0.75)
-        ax[0].legend()
-        ax[1].legend()
-        plt.savefig("./figures/" + file_name_stub + "_" + str(i) + '_gpy_uncertainty.pdf')  # What format is required?
-        #plt.savefig("./figures/gp.pdf")  # What format is required?
-        # plt.show()
+            # Uncertainty for D-GP
+            mc_samples = gp_model.generate_sample(test_item)
+            kde = KernelDensity(kernel='gaussian', bandwidth=0.08).fit(np.array(mc_samples).reshape(-1, 1))
+            X_plot = np.linspace(-1, 1, 2000)[:, np.newaxis]
+            log_dens = kde.score_samples(X_plot)
+            #fig.subplots_adjust(hspace=0.05, wspace=0.05)
+            #ax[2, 0].fill(X_plot[:, 0], np.exp(log_dens))
+            ax[1].plot(X_plot[:, 0], np.exp(log_dens), label="$u$")
+            ax[1].set_xlim([-.5, .5])
+            ax[1].axvline(0, color='black', linewidth=0.75)
+            ax[0].legend()
+            ax[1].legend()
+            plt.savefig("./figures/" + file_name_stub + "_" + str(i) + '_gpy_uncertainty.pdf')  # What format is required?
+            #plt.savefig("./figures/gp.pdf")  # What format is required?
+            # plt.show()
+            plt.clf()
+
+        # Uplift vs. credible interval width
+        fig, ax = plt.subplots(1, 2, figsize=(8, 4))
+        plt.clf()
+        credible_intervals = gp_model.get_credible_intervals(data['testing_set']['X'])
+
+        tmp = [item['width'] for item in credible_intervals]
+        plt.scatter(gp_pred, tmp, alpha=0.2)
+        plt.xlabel(r"$\hat{\tau}(x)$")
+        plt.savefig("./figures/" + file_name_stub + "_gpy_scatter.pdf")
+        #plt.savefig("./figures/gp_scatter.pdf")
         plt.clf()
 
-    # Uplift vs. credible interval width
-    fig, ax = plt.subplots(1, 2, figsize=(8, 4))
-    plt.clf()
-    credible_intervals = gp_model.get_credible_intervals(data['testing_set']['X'])
-
-    tmp = [item['width'] for item in credible_intervals]
-    plt.scatter(gp_pred, tmp, alpha=0.2)
-    plt.xlabel(r"$\hat{\tau}(x)$")
-    plt.savefig("./figures/" + file_name_stub + "_gpy_scatter.pdf")
-    #plt.savefig("./figures/gp_scatter.pdf")
-    plt.clf()
-
-    plt.hist(gp_pred, bins=100)
-    plt.xlabel(r"$\hat{\tau}(x)$")
-    plt.ylabel("#")
-    plt.savefig("./figures/" + file_name_stub + str(i) + "gpy_tau_histogram.pdf")
-    plt.clf()
+        plt.hist(gp_pred, bins=100)
+        plt.xlabel(r"$\hat{\tau}(x)$")
+        plt.ylabel("#")
+        plt.savefig("./figures/" + file_name_stub + str(i) + "gpy_tau_histogram.pdf")
+        plt.clf()
 
     return gp_metrics, gp_average_width
 
@@ -653,7 +656,7 @@ def find_tree_parameters():
 
 
     # Drop last row
-    tmp = [res for res in results[:-1]]
+    tmp = [res for res in results]  #[:-1]]
     # Drop two last columns:
     tmp = [res[:-2] for res in tmp]
     aci = []
@@ -832,6 +835,73 @@ def plots():
     plt.savefig('average_ci_tree_gpy.pdf')
 
 
+def plot_a_eps():
+    """
+    Code to plot AUUC, Average CI and Loss over different alpha_eps for gpy on Starbucks 32k.
+    results needs to contain the following.
+    """
+    # Results with mean negative log-likelihood loss for _transformed_ _outcome_, not actual outcome (label). 
+    # Log-likelihoods not comparable.
+    # results = []
+    # results.append({'auuc': 0.00263421669, 'a_eps': 0.001, 'aci': 0.00027660472551360726, 'loss_c': 2.98, 'loss_t': 3.207, 'loss': 6.186999999999999})
+    # results.append({'auuc': 0.00265008551, 'a_eps': 0.01, 'aci': 0.005799875129014254, 'loss_c': 2.66, 'loss_t': 2.842, 'loss': 5.502000000000001})
+    # results.append({'auuc': 0.00267331973, 'a_eps': 0.1, 'aci': 0.054398782551288605, 'loss_c': 2.162, 'loss_t': 2.261, 'loss': 4.423})
+    # results.append({'auuc': 0.00225373504, 'a_eps': 1.0, 'aci': 0.06630009412765503, 'loss_c': 1.235, 'loss_t': 1.261, 'loss': 2.496})
+    # #results.append({'auuc': 0.00262101812, 'a_eps': 2.0, 'aci': 0.05559254437685013, 'loss_c': 0.796, 'loss_t': 0.797, 'loss': 1.593})
+    # #results.append({'auuc': 0.00228954741, 'a_eps': 4.0, 'aci': 0.04373819753527641, 'loss_c': 0.272, 'loss_t': 0.267, 'loss': 0.539})
+    # results.append({'auuc': 0.00203525177, 'a_eps': 10.0, 'aci': 0.034580718725919724, 'loss_c': -0.511, 'loss_t': -0.524, 'loss': -1.035})
+    # results.append({'auuc': -7.05306351e-05, 'a_eps': 100.0, 'aci': 0.0610869862139225, 'loss_c': -2.631, 'loss_t': -2.622, 'loss': -5.253})
+    # Results with MNLL for original outcome (label). Results comparable
+    results = []
+    #results.append({'auuc': 0.00260295353,'mnll': 0.11296482443415755, 'a_eps': 0.001, 'aci': 0.0002701639896258712})
+    results.append({'auuc': 0.00248798802, 'mnll': 0.08887322752811087, 'a_eps': 0.00390625, 'aci': 0.0017925185384228826})
+    results.append({'auuc': 0.00250783746, 'mnll': 0.07775140859063685, 'a_eps': 0.0078125, 'aci': 0.0044718957506120205})
+    #results.append({'auuc': 0.00271431102, 'mnll': 0.0740577307871572, 'a_eps': 0.01, 'aci': 0.006069921888411045})
+    results.append({'auuc': 0.0024476778, 'mnll': 0.06831228948384524, 'a_eps': 0.015625, 'aci': 0.010984279215335846})
+    results.append({'auuc': 0.00240022503, 'mnll': 0.06305571996883373, 'a_eps': 0.03125, 'aci': 0.025347460061311722})
+    results.append({'auuc': 0.0025829298, 'mnll': 0.06722003487026086, 'a_eps': 0.0625, 'aci': 0.04673637077212334})
+    #results.append({'auuc': 0.00267722593, 'mnll': 0.08058403760252986, 'a_eps': 0.1, 'aci': 0.05682007595896721})
+    results.append({'auuc': 0.00254280552, 'mnll': 0.09070599398878403, 'a_eps': 0.125, 'aci': 0.057021159678697586})
+    results.append({'auuc': 0.00254235032, 'mnll': 0.1469860236516688, 'a_eps': 0.25, 'aci': 0.04154525324702263})
+    results.append({'auuc': 0.00235925936, 'mnll': 0.24735786883253605, 'a_eps': 0.5, 'aci': 0.058674633502960205})
+    results.append({'auuc': 0.00219242583, 'mnll': 0.37705111638270317, 'a_eps': 1.0, 'aci': 0.06203700974583626})
+    #results.append({'auuc': , 'mnll': , 'a_eps': 2.0, 'aci': })
+    #results.append({'auuc': , 'mnll': , 'a_eps': 4.0, 'aci': })
+    #results.append({'auuc': 0.00195265899, 'mnll': 0.6468956182897091, 'a_eps': 10.0, 'aci': 0.03545562922954559})
+    #results.append({'auuc': -0.00112227568, 'mnll': 0.6968150579985232, 'a_eps': 100.0, 'aci': 0.06871015578508377})
+    auuc = [item['auuc'] * 1000 for item in results]  # Changing unit to milli-AUUC
+    aci = [item['aci'] for item in results]
+    loss = [item['mnll'] for item in results]
+    a_eps = [str(item['a_eps']) for item in results]
+
+    fig, ax = plt.subplots(3, 1, sharex=True, sharey=False)
+
+    x_ticks = [r'$2^{-8}$', r'$2^{-7}$', r'$2^{-6}$', r'$2^{-5}$', r'$2^{-4}$', r'$2^{-3}$', r'$2^{-2}$', r'$2^{-1}$', r'$2^{0}$']
+    #ax[0].set_ylabel('Min. samples in node')
+    ax[0].plot(auuc, label='mAUUC')
+    #ax[0].set_xticks([i for i, _ in enumerate(auuc)], a_eps)
+    ax[0].set_xticks([i for i, _ in enumerate(auuc)], x_ticks)
+    ax[0].set_ylabel('mAUUC')
+    #ax[0].legend()
+    #ax[0].set_title('AUUC')
+
+    ax[1].plot(aci, label='Average CI')
+    #ax[1].set_xticks([i for i, _ in enumerate(aci)], a_eps)
+    ax[1].set_xticks([i for i, _ in enumerate(aci)], x_ticks)
+    ax[1].set_ylabel('Average CI')
+    #ax[1].legend()
+
+    #ax2 = ax.twinx()
+    ax[2].plot(loss, label='Mean negative log-likelihood')
+    #ax[2].set_xticks([i for i, _ in enumerate(loss)], a_eps)
+    ax[2].set_xticks([i for i, _ in enumerate(loss)], x_ticks)
+    ax[2].set_ylabel('MNLL')
+    #ax[2].legend()
+    ax[2].set_xlabel(r"$\alpha_{\epsilon}$")
+    plt.savefig('./figures/alpha_eps_starbucks_32k.pdf')
+    #plt.show()
+    plt.clf()
+
 
 if __name__ == "__main__":
     # 0. Collect some args and run program accordingly.
@@ -912,6 +982,10 @@ if __name__ == "__main__":
         except:
             print("No a_eps provided. Setting a_eps=0.1.")
             a_eps = 0.1
+        try:
+            plot = bool(parameters[5])
+        except:
+            plot = False
 
     tmp_n = data['training_set']['X'].shape[0] + data['validation_set']['X'].shape[0]
     assert size <= tmp_n, "Cannot run experiment with training set size {} (not enough observations).".format(size)
@@ -938,7 +1012,7 @@ if __name__ == "__main__":
     if model == 'gp':
         tmp = train_dirichlet_gp(data, file_name_stub, dataset, size, a_eps=a_eps)
     elif model == 'gpy':
-        tmp = train_dirichlet_gpy(data, file_name_stub, dataset, size, a_eps=a_eps)
+        tmp = train_dirichlet_gpy(data, file_name_stub, dataset, size, a_eps=a_eps, plots=plot)
     elif model == 'tree':
         # Makes no sense training with 1k observations if leaf size is 400.
         tmp = train_honest_tree(data, file_name_stub, dataset, size,
