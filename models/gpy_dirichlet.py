@@ -41,8 +41,10 @@ class DirichletGP():
     This wraps class above neatly.
     """
     def __init__(self):
-        self.likelihood = None
+        self.likelihood = None  # Likelihood of _transformed_ _parameter_!!
         self.model = None
+        self.mean_negative_log_likelihood = None  # Negative log-likelihood of training data
+        self.negative_log_likelihood = None
 
     def fit(self, X, y, alpha_eps=0.1, training_iter=10):
         """
@@ -98,7 +100,21 @@ class DirichletGP():
                 break
             else:
                 last_loss = loss
-
+            
+        # Estimate negative log-likelihood for training data
+        # (not transformed labels, but actual labels).
+        # This is following the advice of Milios & al.
+        predictions = self.predict(X)  # Array with two columns, one for negative class, one for positive
+        predictions = np.log(predictions)
+        negative_log_likelihood = 0
+        for i, item in enumerate(y):
+            if item:
+                negative_log_likelihood -= predictions[1][i]
+            else:
+                negative_log_likelihood -= predictions[0][i]
+        self.negative_log_likelihood = negative_log_likelihood
+        mean_negative_log_likelihood = negative_log_likelihood / y.shape[0]
+        self.mean_negative_log_likelihood = mean_negative_log_likelihood
 
     def predict(self, X):
         """
@@ -161,13 +177,20 @@ class DirichletGPUplift():
         """
         self.model_t = DirichletGP()
         self.model_c = DirichletGP()
+        self.mean_negative_log_likelihood = None
 
     def fit(self, X_t, y_t, X_c, y_c, alpha_eps=0.1, max_iterations=1000):
         """
         """
         self.model_t.fit(X_t, y_t, alpha_eps=alpha_eps, training_iter=max_iterations)
         self.model_c.fit(X_c, y_c, alpha_eps=alpha_eps, training_iter=max_iterations)
-    
+        t_observations = y_t.shape[0]
+        c_observations = y_c.shape[0]
+        tot_observations = t_observations + c_observations
+        self.mean_negative_log_likelihood = (self.model_t.negative_log_likelihood +\
+            self.model_c.negative_log_likelihood) / tot_observations
+        print("Mean negative log-likelihood: {}".format(self.mean_negative_log_likelihood))
+
     def predict_uplift(self, X):
         """
         """
