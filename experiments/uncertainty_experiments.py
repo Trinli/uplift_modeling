@@ -255,7 +255,7 @@ def dirichlet_gp_auuc_uncertainty(data, file_name_stub="gp_tmp",
 
 def train_dirichlet_gpy(data, file_name_stub="gpy_tmp",
                         dataset=None, size=None, a_eps=0.1,
-                        plots=True):
+                        plots=False):
     """
     In contrast to the previous. this one uses the implementation based
     on Gpytorch!! Compatible with modern environments etc.
@@ -367,23 +367,24 @@ def train_dirichlet_gpy(data, file_name_stub="gpy_tmp",
             # plt.show()
             plt.clf()
 
-        # Uplift vs. credible interval width
-        fig, ax = plt.subplots(1, 2, figsize=(8, 4))
-        plt.clf()
-        credible_intervals = gp_model.get_credible_intervals(data['testing_set']['X'])
+    # Uplift vs. credible interval width
+    fig, ax = plt.subplots(1, 2, figsize=(8, 4))
+    plt.clf()
+    credible_intervals = gp_model.get_credible_intervals(data['testing_set']['X'][:100000, :])
 
-        tmp = [item['width'] for item in credible_intervals]
-        plt.scatter(gp_pred, tmp, alpha=0.2)
-        plt.xlabel(r"$\hat{\tau}(x)$")
-        plt.savefig("./figures/" + file_name_stub + "_gpy_scatter.pdf")
-        #plt.savefig("./figures/gp_scatter.pdf")
-        plt.clf()
+    tmp = [item['width'] for item in credible_intervals]
+    plt.scatter(gp_pred[:10000], tmp[:10000], alpha=0.2)  # Plot 10k first observations.
+    plt.xlabel(r"$\hat{\tau}(x)$")
+    plt.ylabel("95% credible interval width")
+    plt.savefig("./figures/" + file_name_stub + "_gpy_scatter.pdf")
+    #plt.savefig("./figures/gp_scatter.pdf")
+    plt.clf()
 
-        plt.hist(gp_pred, bins=100)
-        plt.xlabel(r"$\hat{\tau}(x)$")
-        plt.ylabel("#")
-        plt.savefig("./figures/" + file_name_stub + str(i) + "gpy_tau_histogram.pdf")
-        plt.clf()
+    plt.hist(gp_pred, bins=100)
+    plt.xlabel(r"$\hat{\tau}(x)$")
+    plt.ylabel("#")
+    plt.savefig("./figures/" + file_name_stub + "gpy_tau_histogram.pdf")
+    plt.clf()
 
     return gp_metrics, gp_average_width
 
@@ -603,7 +604,7 @@ def train_honest_tree(data, file_name_stub="tree_tmp",
     plt.clf()
     # Scatter plot for predictions vs. width of credible intervals
     tree_width = np.array([item['hpd']['width'] for item in tree_pred])
-    plt.scatter(tree_tau, tree_width, alpha=0.5)
+    plt.scatter(tree_tau[:10000], tree_width[:10000], alpha=0.5)
     plt.xlabel(r"$\hat{\tau}(x)$")
     plt.ylabel("95% credible interval width")
     plt.savefig("./figures/" + file_name_stub + "_tree_scatter.pdf")
@@ -615,6 +616,7 @@ def train_honest_tree(data, file_name_stub="tree_tmp",
     plt.clf()
     print("Average width of 95% credible interval: {}".format(tree_average_width))
     print(tree_metrics)
+    #return tree_model  # Quick hack to extract model.
     return tree_metrics, tree_average_width
 
 
@@ -627,8 +629,8 @@ def find_tree_parameters():
     data_format = ld.STARBUCKS_FORMAT
     data_format['file_name'] = './datasets/' + data_format['file_name']
     data = ld.DatasetCollection(data_format['file_name'], data_format=data_format)
-    # Get a 16k training set (actually 16k split 1/2 tree structure, 1/2 calibration)
-    size = 16000
+    # Get a 32k training set (actually 16k split 1/2 tree structure, 1/2 calibration)
+    size = 32000
     data.add_set('tree_train', 0, int(size/2))
     data.add_set('tree_val', int(size/2), size)
 
@@ -650,9 +652,11 @@ def find_tree_parameters():
     # min_sample_leaf 4098 implies splitting training data in two leafs...
     # However, AUUC is not particularly good
     # Max_leaf_nodes could be smaller for optimal AUUC?
+    tmp_ = []
     for res in results:
         tmp = [item[0][0].auuc for item in res]
         print(tmp)
+        tmp_.append(tmp)
 
 
     # Drop last row
@@ -690,13 +694,13 @@ def find_tree_parameters():
     plt.colorbar(im_auuc, ax=ax[1], fraction=0.05)
     #plt.yticks([i for i in range(8)], [str(item) for item in min_sample_leaf_list[:-1]])
     #plt.xticks([i for i in range(6)], [str(item) for item in max_leaf_nodes_list[:-2]])
-    ax[1].set_yticks([i for i in range(8)], [str(item) for item in min_sample_leaf_list[:-1]])
-    ax[1].set_xticks([i for i in range(6)], [str(item) for item in max_leaf_nodes_list[:-2]])
+    ax[1].set_yticks([i for i in range(9)], [str(item) for item in min_sample_leaf_list])
+    ax[1].set_xticks([i for i in range(8)], [str(item) for item in max_leaf_nodes_list[:-2]] + [r'$2^7$', r'$2^8$'])
     ax[1].set_title('AUUC')
     #plt.ylabel('Min. samples in node')
     plt.xlabel('Max. number of leaf nodes')
     #ax[1].set_xlabel('Max. number of leaf nodes')
-    plt.savefig('grid_search_aci_tree.pdf')
+    plt.savefig('grid_search_aci_tree_64k.pdf')
     #plt.show()
 
 def parse_file(result_file='./results/uncertainty/uncertainty_tree_results.csv'):
@@ -818,14 +822,14 @@ def plots():
     starbucks_size_gp = [item[1] for item in tmp[6:]]
     starbucks_auuc_gp = [item[5] for item in tmp[6:]]
     # DGP models:
-    plt.plot([i + 1 for i, _ in enumerate(hillstrom_aci_gp)], hillstrom_aci_gp, label='Hillstrom DGP', linestyle='solid', color='tab:blue')
-    plt.plot([i + 1 for i, _ in enumerate(starbucks_aci_gp)], starbucks_aci_gp, label='Starbucks DGP', linestyle='solid', color='tab:orange')
+    plt.plot([i + 1 for i, _ in enumerate(hillstrom_aci_gp)], hillstrom_aci_gp, label='Hillstrom DGP', linestyle='dashed', color='tab:blue')
+    plt.plot([i + 1 for i, _ in enumerate(starbucks_aci_gp)], starbucks_aci_gp, label='Starbucks DGP', linestyle='solid', color='tab:blue')
     plt.scatter([i + 1 for i, _ in enumerate(hillstrom_aci_gp)], hillstrom_aci_gp, color='tab:blue')
-    plt.scatter([i + 1 for i, _ in enumerate(starbucks_aci_gp)], starbucks_aci_gp, color='tab:orange')
+    plt.scatter([i + 1 for i, _ in enumerate(starbucks_aci_gp)], starbucks_aci_gp, color='tab:blue')
     # Tree models:
-    plt.plot([i + 1 for i, _ in enumerate(hillstrom_aci)], hillstrom_aci, label='Hillstrom Tree', linestyle='dashed', color='tab:blue')
-    plt.plot([i + 1 for i, _ in enumerate(starbucks_aci)], starbucks_aci, label='Starbucks Tree', linestyle='dashed', color='tab:orange')
-    plt.scatter([i + 1 for i, _ in enumerate(hillstrom_aci)], hillstrom_aci, color='tab:blue')
+    plt.plot([i + 1 for i, _ in enumerate(hillstrom_aci)], hillstrom_aci, label='Hillstrom Tree', linestyle='dashed', color='tab:orange')
+    plt.plot([i + 1 for i, _ in enumerate(starbucks_aci)], starbucks_aci, label='Starbucks Tree', linestyle='solid', color='tab:orange')
+    plt.scatter([i + 1 for i, _ in enumerate(hillstrom_aci)], hillstrom_aci, color='tab:orange')
     plt.scatter([i + 1 for i, _ in enumerate(starbucks_aci)], starbucks_aci, color='tab:orange')
     plt.xticks([i + 1 for i, _ in enumerate(starbucks_aci)], [str(item) for item in starbucks_size])
     #plt.xscale('log')
@@ -1005,7 +1009,7 @@ if __name__ == "__main__":
     elif model == 'gp':
         file_name_stub = dataset + "_" + str(size) + '_' + 'a_eps_{}'.format(a_eps) # Should contain dataset and downsampling, maybe leaf size for tree    
     elif model == 'gpy':
-        file_name_stub = dataset + "_" + str(size) + '_' + '_gpy_a_eps_{}'.format(a_eps) # Should contain dataset and downsampling, maybe leaf size for tree    
+        file_name_stub = dataset + "_" + str(size) + '_' + 'gpy_a_eps_{}'.format(a_eps) # Should contain dataset and downsampling, maybe leaf size for tree    
     # Or actually, write to same file, just pass appropriate parameters to the metrics-object!
 
     # 3. Pass on name stub for all files produced. Maybe also result file.
