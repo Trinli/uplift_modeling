@@ -1082,16 +1082,17 @@ def plot_uplift_curve(data_class, data_score, data_group, file_name='uplift_curv
         tmp = 1
     plt.plot([100 * x / n_splits for x in range(0, n_splits)],
              [tmp * 100 * (conversion - conversion_0) for conversion, x in
-              zip(conversions, range(len(conversions)))])
+              zip(conversions, range(len(conversions)))], color='tab:blue')  #, label='DGP')
     # Add line for "random" model:
-    plt.plot([0, 100], [0, tmp * 100 * (conversion_1 - conversion_0)])
+    plt.plot([0, 100], [0, tmp * 100 * (conversion_1 - conversion_0)], color='tab:green')  #, label='(random)')
     if revenue is not None:
         plt.ylabel('Cumulative revenue increase')
     else:
         plt.ylabel('Uplift [%]')
+    #plt.title('Uplift curve')
     plt.xlabel('Fraction of treated samples [%]')
-    plt.title('Uplift curve')
-    plt.savefig(file_name)
+    #plt.tight_layout()
+    plt.savefig(file_name, bbox_inches='tight')
     plt.close()
     return()
 
