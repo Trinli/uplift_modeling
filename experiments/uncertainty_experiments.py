@@ -721,16 +721,17 @@ def plot_a_eps():
 
 if __name__ == "__main__":
     # 0. Collect some args and run program accordingly.
+    print("\n")
     print('For tree, use as "python -m experiments.uncertainty_experiments tree dataset size max_leaf_nodes undersampling honest"')
     print('For DGP, use as "python -m experiments.uncertainty_experiments dgp dataset size')
-    print("Use as 'python -m experiments.uncertainty_experiments model dataset training_set_size max_leaf_nodes honest undersampling")
-    print('Model is "dgp" or "tree" (no quotation marks)')
-    print('Dataset can be "criteo2", "statbucks", or "hillstrom" (make sure to download the Criteo2 dataset to the ./datasets/ -folder')
-    print('Size the training set size and is an integer.')
-    print('max_leaf_nodes is the maximum number of leaf nodes')
-    print('undersampling is boolean and defines whether undersampling should be used (set to "True" for undersampling)')
-    print('honest is boolean and defines whether honest estimation should be used (set to "True" for honest estimation')
-    
+    print('\tmodel is "dgp" or "tree" (no quotation marks)')
+    print('\tdataset can be "criteo2", "statbucks", or "hillstrom" (make sure to download the Criteo2 dataset to the ./datasets/ -folder')
+    print('\tsize the training set size and is an integer.')
+    print('\tmax_leaf_nodes is the maximum number of leaf nodes')
+    print('\tundersampling is boolean and defines whether undersampling should be used (set to "True" for undersampling)')
+    print('\thonest is boolean and defines whether honest estimation should be used (set to "True" for honest estimation')
+    print("\n")
+
     parameters = sys.argv
     # 1. Load appropriate dataset
     tmp = parameters[1]
