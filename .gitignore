@@ -14,3 +14,6 @@ settings.json
 !criteo_dataset_size.png
 results/dataset_size/README
 DAMI3/
+results/
+*.pickle
+*.gz
