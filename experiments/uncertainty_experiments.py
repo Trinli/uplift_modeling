@@ -43,6 +43,7 @@ controlled trial publicly available.
 
 import numpy as np
 import matplotlib.pyplot as plt
+plt.rcParams['font.size'] = 14  # Increase default font size from 10 to 12.
 from sklearn.neighbors import KernelDensity
 from scipy.stats import beta
 import sys
@@ -255,7 +256,7 @@ def dirichlet_gp_auuc_uncertainty(data, file_name_stub="gp_tmp",
 
 def train_dirichlet_gpy(data, file_name_stub="gpy_tmp",
                         dataset=None, size=None, a_eps=0.1,
-                        plots=False):
+                        plots=True, auto=False):
     """
     In contrast to the previous. this one uses the implementation based
     on Gpytorch!! Compatible with modern environments etc.
@@ -282,7 +283,7 @@ def train_dirichlet_gpy(data, file_name_stub="gpy_tmp",
     #import models.dirichlet_gp as GPD
     # Train Dirichlet Gaussian Process-model
     gp_model = GPY.DirichletGPUplift()
-    gp_model.fit(X_t, y_t, X_c, y_c, alpha_eps=a_eps)
+    gp_model.fit(X_t, y_t, X_c, y_c, alpha_eps=a_eps, auto_alpha_eps=auto)
 
     # Estimate metrics
     gp_pred = gp_model.predict_uplift(data['testing_set']['X'])
@@ -293,7 +294,7 @@ def train_dirichlet_gpy(data, file_name_stub="gpy_tmp",
                                   test_description="Uncertainty with D-GP", algorithm="Dirichlet-GP",
                                   dataset=dataset + "_" + str(size),
                                   parameters=gp_average_width)  # Storing average width!
-    gp_metrics.write_to_csv("./results/uncertainty_gpy_results.csv")
+    gp_metrics.write_to_csv("./results/uncertainty_gpy_results_parameter_selection.csv")
     # Store model
     # save_object(gp_model, file_name_stub + "_gp_model.pickle")  # This GP cannot be serialized with pickle nor dill.
 
@@ -308,7 +309,7 @@ def train_dirichlet_gpy(data, file_name_stub="gpy_tmp",
     # are kind of double classifiers, the uncertainties for the response models
     # can easily be estimated.
     #idx = [np.argmax(gp_pred)]
-    idx = [4016, 16028, 17061]
+    idx = [4016, 11808, 16028, 17061]
     print("Testing set observation with largest tau at {}".format(idx))
     # Print both predictions and uncertainty for this.
 
@@ -331,7 +332,7 @@ def train_dirichlet_gpy(data, file_name_stub="gpy_tmp",
             fig, ax = plt.subplots(1, 2, figsize=(8, 2))
             #fig.subplots_adjust(hspace=0.05, wspace=0.05)
             #ax[0, 0].fill(X_plot[:, 0], np.exp(log_dens))
-            ax[0].plot(X_plot[:, 0], np.exp(log_dens), label="$p_{t=1}$")  # Width 0 to 0.5?
+            ax[0].plot(X_plot[:, 0], np.exp(log_dens), label="Treatment")  # Width 0 to 0.5?
             ax[0].set_xlim([0, 0.5])
             #ax[0, 0].text(-3.5, 0.31, "p(y=1|x, t=1), Dirichlet GP")
 
@@ -347,7 +348,7 @@ def train_dirichlet_gpy(data, file_name_stub="gpy_tmp",
             log_dens = kde.score_samples(X_plot)
             #fig.subplots_adjust(hspace=0.05, wspace=0.05)
             #ax[1, 0].fill(X_plot[:, 0], np.exp(log_dens))
-            ax[0].plot(X_plot[:, 0], np.exp(log_dens), label="$p_{t=0}$")
+            ax[0].plot(X_plot[:, 0], np.exp(log_dens), label="Control")
             #ax[1, 0].text(-3.5, 0.31, "p(y=1|x, t=0), Dirichlet GP")
 
             # Uncertainty for D-GP
@@ -357,26 +358,35 @@ def train_dirichlet_gpy(data, file_name_stub="gpy_tmp",
             log_dens = kde.score_samples(X_plot)
             #fig.subplots_adjust(hspace=0.05, wspace=0.05)
             #ax[2, 0].fill(X_plot[:, 0], np.exp(log_dens))
-            ax[1].plot(X_plot[:, 0], np.exp(log_dens), label="$u$")
+            ax[1].plot(X_plot[:, 0], np.exp(log_dens), label="Uplift")
             ax[1].set_xlim([-.5, .5])
             ax[1].axvline(0, color='black', linewidth=0.75)
             ax[0].legend()
             ax[1].legend()
-            plt.savefig("./figures/" + file_name_stub + "_" + str(i) + '_gpy_uncertainty.pdf')  # What format is required?
+            plt.savefig("./figures/" + file_name_stub + "_" + str(i) + '_gpy_uncertainty.pdf', bbox_inches='tight')  # What format is required?
             #plt.savefig("./figures/gp.pdf")  # What format is required?
             # plt.show()
             plt.clf()
+            print("Metrics for testing observation i={}:".format(i))
+            tau = gp_model.predict_uplift(test_item)
+            print("Uplift: {}".format(tau))
+            prob_neg = sum(mc_samples < 0) / len(mc_samples)
+            print("Probability of uplift being negative: {}".format(prob_neg))
+            cred_int = gp_model.get_credible_intervals(test_item)
+            print("Credible interval (95%): {}".format(cred_int))
 
     # Uplift vs. credible interval width
-    fig, ax = plt.subplots(1, 2, figsize=(8, 4))
-    plt.clf()
-    credible_intervals = gp_model.get_credible_intervals(data['testing_set']['X'][:100000, :])
-
+    credible_intervals = gp_model.get_credible_intervals(data['testing_set']['X'][:5000, :])
     tmp = [item['width'] for item in credible_intervals]
-    plt.scatter(gp_pred[:10000], tmp[:10000], alpha=0.2)  # Plot 10k first observations.
+
+    #fig, ax = plt.subplots(1, 2, figsize=(8, 4))
+    plt.clf()
+    plt.scatter(gp_pred[:5000], tmp, alpha=0.2)  # Plot 5k first observations.
     plt.xlabel(r"$\hat{\tau}(x)$")
-    plt.ylabel("95% credible interval width")
-    plt.savefig("./figures/" + file_name_stub + "_gpy_scatter.pdf")
+    plt.axvline(0, color='black', linewidth=0.75)
+    plt.ylabel("95% CI width")
+    plt.savefig("./figures/" + file_name_stub + "_gpy_scatter.pdf", bbox_inches='tight')
+    #plt.savefig("./figures/" + file_name_stub + "_gpy_scatter.png")
     #plt.savefig("./figures/gp_scatter.pdf")
     plt.clf()
 
@@ -515,9 +525,19 @@ def train_honest_tree(data, file_name_stub="tree_tmp",
                       dataset=None, size=None,
                       min_samples_leaf=None,
                       honest=True, max_leaf_nodes=None,
-                      undersampling=False):
+                      undersampling=False,
+                      auto_parameters=False):
+    """
+    "Default" parameters for 
+    Criteo: min_samples_leaf = 100, max_leaf_nodes = 81
+    Hillstrom: min_samples_leaf = 100, max_leaf_nodes = 34
+    Starbucks: min_samples_leaf = 100, max_leaf_nodes = 12
+    Requires 'tree_train' dataset in data and may require 'tree_val'.
+    """
     # Train honest tree
-    if min_samples_leaf is not None:
+    if auto_parameters:
+        tree_model = honest_tree.HonestUpliftTree(auto_parameters=True)
+    elif min_samples_leaf is not None:
         tree_model = honest_tree.HonestUpliftTree(max_leaf_nodes=max_leaf_nodes,
         min_samples_leaf=min_samples_leaf)
     else:
@@ -525,13 +545,16 @@ def train_honest_tree(data, file_name_stub="tree_tmp",
     if honest:
         if undersampling:
             print("Training honest tree with undersampling...")
+            if auto_parameters:
+                print("Automatic search for parameters with undersampling not implemented.")
             tree_model.honest_undersampling_fit(data)
             print("Optimal k: {}".format(tree_model.k))
         else:
             print("Training honest tree without undersampling...")
             tree_model.fit(data['tree_train']['X'], data['tree_train']['r'],
                         data['tree_val']['X'], data['tree_val']['y'],
-                        data['tree_val']['t'])
+                        data['tree_val']['t'], data['tree_train']['y'],
+                        data['tree_train']['t'])
     else:
         print("Training non-honest tree...")
         # How should the dataset size be taken into account here?
@@ -551,7 +574,7 @@ def train_honest_tree(data, file_name_stub="tree_tmp",
                                     test_description="Uncertainty with Uplift Tree", algorithm="Honest Tree",
                                     dataset=file_name_stub,
                                     parameters=tree_average_width)  # Storing average width with results!
-    tree_metrics.write_to_csv("./results/uncertainty_tree_results.csv")
+    tree_metrics.write_to_csv("./results/uncertainty_tree_results_parameter_selection.csv")
 
     # Find observation with "large" uplift and plot that. Need to find a "large" through one single run, and then
     # use that same for other runs.
@@ -570,19 +593,19 @@ def train_honest_tree(data, file_name_stub="tree_tmp",
         X_plot = np.linspace(0, 1, 1000)[:, np.newaxis]
         ax[0].plot(X_plot, beta.pdf(X_plot,
             tree_params[0]['alpha_t'], tree_params[0]['beta_t']),
-                label="$p_{t=1}$")  # We want to change the scale here.
+                label="Treatment")  # We want to change the scale here.
         ax[0].set_xlim([0, .5])
         #ax[0, 1].text(-3.5, 0.31, "p(y=1|x, t=1), Honest Tree")
 
         ax[0].plot(X_plot, beta.pdf(X_plot,
-            tree_params[0]['alpha_c'], tree_params[0]['beta_c']), label="$p_{t=0}$")
+            tree_params[0]['alpha_c'], tree_params[0]['beta_c']), label="Control")
 
         # Uncertainty of uplift: This one needs a different scale for the x-axis!!
         tree_samples = tree_model.generate_sample(test_item)
         kde = KernelDensity(kernel='gaussian', bandwidth=0.02).fit(tree_samples.reshape(-1, 1))
         X_plot = np.linspace(-1, 1, 2000)[:, np.newaxis]
         log_dens = kde.score_samples(X_plot)
-        ax[1].plot(X_plot[:, 0], np.exp(log_dens), label="$u$")
+        ax[1].plot(X_plot[:, 0], np.exp(log_dens), label="Uplift")
         ax[1].set_xlim([-.5, .5])
         # ax[1].spines['left'].set_position('zero')  # This was not it. Scale to the left, but line through origo.
         ax[1].axvline(0, color='black', linewidth=0.75)
@@ -593,7 +616,7 @@ def train_honest_tree(data, file_name_stub="tree_tmp",
         ax[0].legend()
         ax[1].legend()
         #plt.figure(figsize=(5, 10))
-        plt.savefig("./figures/" + file_name_stub + "_" + str(i) + '_tree_uncertainty.pdf')  # What format is required?
+        plt.savefig("./figures/" + file_name_stub + "_" + str(i) + '_tree_uncertainty.pdf', bbox_inches='tight')  # What format is required?
         # plt.show()
         plt.clf()
         plt.hist(tree_samples)
@@ -604,7 +627,7 @@ def train_honest_tree(data, file_name_stub="tree_tmp",
     plt.clf()
     # Scatter plot for predictions vs. width of credible intervals
     tree_width = np.array([item['hpd']['width'] for item in tree_pred])
-    plt.scatter(tree_tau[:10000], tree_width[:10000], alpha=0.5)
+    plt.scatter(tree_tau[:5000], tree_width[:5000], alpha=0.5)
     plt.xlabel(r"$\hat{\tau}(x)$")
     plt.ylabel("95% credible interval width")
     plt.savefig("./figures/" + file_name_stub + "_tree_scatter.pdf")
@@ -662,7 +685,7 @@ def find_tree_parameters():
     # Drop last row
     tmp = [res for res in results]  #[:-1]]
     # Drop two last columns:
-    tmp = [res[:-2] for res in tmp]
+    #tmp = [res[:-2] for res in tmp]
     aci = []
     for line in tmp:
         tmp_ = [item[0][1] for item in line]
@@ -670,15 +693,17 @@ def find_tree_parameters():
         aci.append(tmp_)
     aci = np.array(aci)
 
+    plt.rcParams['font.size'] = 12
     fig, ax = plt.subplots(1, 2, sharey=True, sharex=True)
     fig.tight_layout(pad=4)
-    im_aci = ax[0].imshow(aci, cmap='plasma')
+    im_aci = ax[0].imshow(aci, cmap='plasma_r')
     plt.colorbar(im_aci, ax=ax[0], fraction=0.05)
     # Add ticks and something.
     #plt.yticks([i for i in range(8)], [str(item) for item in min_sample_leaf_list[:-1]])
     ax[0].set_yticks([i for i in range(8)], [str(item) for item in min_sample_leaf_list[:-1]])
     #plt.xticks([i for i in range(6)], [str(item) for item in max_leaf_nodes_list[:-2]])
-    ax[0].set_xticks([i for i in range(6)], [str(item) for item in max_leaf_nodes_list[:-2]])
+    #ax[0].set_xticks([i for i in range(6)], [str(item) for item in max_leaf_nodes_list[:-2]])
+    ax[0].set_xticks([i for i in range(8)], [r'$2^1$', r'$2^2$', r'$2^3$', r'$2^4$', r'$2^5$', r'$2^6$', r'$2^7$', r'$2^8$'])
     ax[0].set_title("Average CI")
     #plt.ylabel('Min. samples in node')
     #plt.xlabel('Max. number of leaf nodes')
@@ -687,7 +712,7 @@ def find_tree_parameters():
 
     auuc = []
     for line in tmp:
-        tmp_ = [item[0][0].auuc for item in line]
+        tmp_ = [item[0][0].auuc * 1000 for item in line]  # Change to mAUUC
         auuc.append(tmp_)
     auuc = np.array(auuc)
     im_auuc = ax[1].imshow(auuc, cmap='viridis')
@@ -695,12 +720,14 @@ def find_tree_parameters():
     #plt.yticks([i for i in range(8)], [str(item) for item in min_sample_leaf_list[:-1]])
     #plt.xticks([i for i in range(6)], [str(item) for item in max_leaf_nodes_list[:-2]])
     ax[1].set_yticks([i for i in range(9)], [str(item) for item in min_sample_leaf_list])
-    ax[1].set_xticks([i for i in range(8)], [str(item) for item in max_leaf_nodes_list[:-2]] + [r'$2^7$', r'$2^8$'])
-    ax[1].set_title('AUUC')
+    ax[1].set_xticks([i for i in range(8)], [r'$2^1$', r'$2^2$', r'$2^3$', r'$2^4$', r'$2^5$', r'$2^6$', r'$2^7$', r'$2^8$'])
+    #ax[1].set_xticks([i for i in range(8)], [str(item) for item in max_leaf_nodes_list[:-2]] + [r'$2^7$', r'$2^8$'])
+    ax[1].set_title('mAUUC')
     #plt.ylabel('Min. samples in node')
     plt.xlabel('Max. number of leaf nodes')
     #ax[1].set_xlabel('Max. number of leaf nodes')
-    plt.savefig('grid_search_aci_tree_64k.pdf')
+    plt.savefig('grid_search_aci_tree_32k.pdf', bbox_inches='tight')
+    plt.rcParams['font.size'] = 14
     #plt.show()
 
 def parse_file(result_file='./results/uncertainty/uncertainty_tree_results.csv'):
@@ -750,7 +777,7 @@ def parse_file(result_file='./results/uncertainty/uncertainty_tree_results.csv')
     return output
 
 
-def parse_result_file(result_file='./results/uncertainty/uncertainty_tree_results.csv'):
+def parse_result_file(result_file='./results/uncertainty/uncertainty_gpy_results_parameter_selection.csv'):
     """
     Function for parsing results from csv-file and printing them in
     latex-format.
@@ -770,16 +797,16 @@ def parse_result_file(result_file='./results/uncertainty/uncertainty_tree_result
     latex_code += "\n"
     latex_code += """\label{sample-table}
 \\begin{center}
-\\begin{tabular}{llllllll}
+\\begin{tabular}{lllll}
 \multicolumn{1}{c}{\\bf PART}  &\multicolumn{1}{c}{\\bf DESCRIPTION}
 \\\\ \hline \\\\
 """
     # Column names
     #print("Dataset \tModel \tSize \tUndersampling \tAUUC \t Average CI \tEUCE \tMUCE \tE(MSE)")
-    latex_code += "Dataset &Size &Model &Undersampling &mAUUC &Average CI &EUCE & $\mathbf{E}(MSE)$ \\\\ \n"
+    latex_code += "Dataset &Size &Model &mAUUC &Average CI \\\\ \n"
     for row in output:
-        latex_code += """{} &{} &{} &{} &{:.5f} &{:.5f} &{:.5f} &{:.5f} \\\\""".format(
-            row['dataset'].astype(str), row['size'], row['model'].astype(str), row['undersampling'],
+        latex_code += """{} &{}k &{} &{:.4f} &{:.4f} \\\\""".format(
+            row['dataset'].astype(str), int(row['size']/1000), row['model'].astype(str),
             1000 * row['auuc'], row['average_ci'], row['euce'], row['emse']
         )
         latex_code +="\n"
@@ -798,45 +825,45 @@ def plots():
     # -skip rows corresponding to 500 observations
     # -same plot for Criteo and the others? X-axis do not overlap.
     # -separate plot for DGP?
-    result_file='./results/uncertainty/uncertainty_tree_results.csv'
+    result_file='./results/uncertainty_tree_results_parameter_selection.csv'
     output = parse_file(result_file)
     tmp = [row for row in output if ((row['dataset'] == b'criteo2' and bool(row['undersampling']) is True) 
         or (row['dataset'] in [b'hillstrom', b'starbucks'] and bool(row['undersampling']) is not True))
         and row['size'] != 500]
-    criteo_aci = [item[6] for item in tmp[:7]]
-    criteo_size = [item[1] for item in tmp[:7]]
-    criteo_auuc = [item[5] for item in tmp[:7]]
-    hillstrom_aci = [item[6] for item in tmp[7:13]]
-    hillstrom_size = [item[1] for item in tmp[7:13]]
-    hillstrom_auuc = [item[5] for item in tmp[7:13]]
-    starbucks_aci = [item[6] for item in tmp[13:]]
-    starbucks_size = [item[1] for item in tmp[13:]]
-    starbucks_auuc = [item[5] for item in tmp[13:]]
-    result_file_2 = './results/uncertainty/uncertainty_gpy_results.csv'  # now GPY-results!
+    hillstrom_aci = [item[6] for item in tmp[:5]]
+    hillstrom_size = [item[1] for item in tmp[:5]]
+    hillstrom_auuc = [item[5] for item in tmp[:5]]
+    starbucks_aci = [item[6] for item in tmp[5:12]]
+    starbucks_size = [item[1] for item in tmp[5:12]]
+    starbucks_auuc = [item[5] for item in tmp[5:12]]
+    #criteo_aci = [item[6] for item in tmp[:7]]
+    #criteo_size = [item[1] for item in tmp[:7]]
+    #criteo_auuc = [item[5] for item in tmp[:7]]
+    result_file_2 = './results/uncertainty/uncertainty_gpy_results_parameter_selection.csv'  # now GPY-results!
     output = parse_file(result_file_2)
     tmp = [row for row in output if row['dataset'] in [b'hillstrom', b'starbucks'] and row['size'] != 500]
-    hillstrom_aci_gp = [item[6] for item in tmp[:6]]
-    hillstrom_size_gp = [item[1] for item in tmp[:6]]
-    hillstrom_auuc_gp = [item[5] for item in tmp[:6]]
-    starbucks_aci_gp = [item[6] for item in tmp[6:]]
-    starbucks_size_gp = [item[1] for item in tmp[6:]]
-    starbucks_auuc_gp = [item[5] for item in tmp[6:]]
+    hillstrom_aci_gp = [item[6] for item in tmp[:5]]
+    hillstrom_size_gp = [item[1] for item in tmp[:5]]
+    hillstrom_auuc_gp = [item[5] for item in tmp[:5]]
+    starbucks_aci_gp = [item[6] for item in tmp[5:]]
+    starbucks_size_gp = [item[1] for item in tmp[5:]]
+    starbucks_auuc_gp = [item[5] for item in tmp[5:]]
     # DGP models:
-    plt.plot([i + 1 for i, _ in enumerate(hillstrom_aci_gp)], hillstrom_aci_gp, label='Hillstrom DGP', linestyle='dashed', color='tab:blue')
-    plt.plot([i + 1 for i, _ in enumerate(starbucks_aci_gp)], starbucks_aci_gp, label='Starbucks DGP', linestyle='solid', color='tab:blue')
-    plt.scatter([i + 1 for i, _ in enumerate(hillstrom_aci_gp)], hillstrom_aci_gp, color='tab:blue')
-    plt.scatter([i + 1 for i, _ in enumerate(starbucks_aci_gp)], starbucks_aci_gp, color='tab:blue')
     # Tree models:
+    plt.plot([i + 1 for i, _ in enumerate(hillstrom_aci_gp)], hillstrom_aci_gp, label='Hillstrom DGP', linestyle='dashed', color='tab:blue')
+    plt.scatter([i + 1 for i, _ in enumerate(hillstrom_aci_gp)], hillstrom_aci_gp, color='tab:blue')
     plt.plot([i + 1 for i, _ in enumerate(hillstrom_aci)], hillstrom_aci, label='Hillstrom Tree', linestyle='dashed', color='tab:orange')
-    plt.plot([i + 1 for i, _ in enumerate(starbucks_aci)], starbucks_aci, label='Starbucks Tree', linestyle='solid', color='tab:orange')
     plt.scatter([i + 1 for i, _ in enumerate(hillstrom_aci)], hillstrom_aci, color='tab:orange')
+    plt.plot([i + 1 for i, _ in enumerate(starbucks_aci_gp)], starbucks_aci_gp, label='Starbucks DGP', linestyle='solid', color='tab:blue')
+    plt.scatter([i + 1 for i, _ in enumerate(starbucks_aci_gp)], starbucks_aci_gp, color='tab:blue')
+    plt.plot([i + 1 for i, _ in enumerate(starbucks_aci)], starbucks_aci, label='Starbucks Tree', linestyle='solid', color='tab:orange')
     plt.scatter([i + 1 for i, _ in enumerate(starbucks_aci)], starbucks_aci, color='tab:orange')
-    plt.xticks([i + 1 for i, _ in enumerate(starbucks_aci)], [str(item) for item in starbucks_size])
+    plt.xticks([i + 1 for i, _ in enumerate(starbucks_aci)], [str(i) for i in starbucks_size])
     #plt.xscale('log')
     plt.ylabel('Average CI (95%)')
     plt.xlabel('Training set size')
     plt.legend()
-    plt.savefig('average_ci_tree_gpy.pdf')
+    plt.savefig('average_ci_tree_gpy_param_selection.pdf', bbox_inches='tight')
 
 
 def plot_a_eps():
@@ -868,11 +895,11 @@ def plot_a_eps():
     results.append({'auuc': 0.00254280552, 'mnll': 0.09070599398878403, 'a_eps': 0.125, 'aci': 0.057021159678697586})
     results.append({'auuc': 0.00254235032, 'mnll': 0.1469860236516688, 'a_eps': 0.25, 'aci': 0.04154525324702263})
     results.append({'auuc': 0.00235925936, 'mnll': 0.24735786883253605, 'a_eps': 0.5, 'aci': 0.058674633502960205})
-    results.append({'auuc': 0.00219242583, 'mnll': 0.37705111638270317, 'a_eps': 1.0, 'aci': 0.06203700974583626})
-    #results.append({'auuc': , 'mnll': , 'a_eps': 2.0, 'aci': })
-    #results.append({'auuc': , 'mnll': , 'a_eps': 4.0, 'aci': })
+    #results.append({'auuc': 0.00219242583, 'mnll': 0.37705111638270317, 'a_eps': 1.0, 'aci': 0.06203700974583626})
     #results.append({'auuc': 0.00195265899, 'mnll': 0.6468956182897091, 'a_eps': 10.0, 'aci': 0.03545562922954559})
     #results.append({'auuc': -0.00112227568, 'mnll': 0.6968150579985232, 'a_eps': 100.0, 'aci': 0.06871015578508377})
+    #results.append({'auuc': , 'mnll': , 'a_eps': 2.0, 'aci': })
+    #results.append({'auuc': , 'mnll': , 'a_eps': 4.0, 'aci': })
     auuc = [item['auuc'] * 1000 for item in results]  # Changing unit to milli-AUUC
     aci = [item['aci'] for item in results]
     loss = [item['mnll'] for item in results]
@@ -880,12 +907,13 @@ def plot_a_eps():
 
     fig, ax = plt.subplots(3, 1, sharex=True, sharey=False)
 
-    x_ticks = [r'$2^{-8}$', r'$2^{-7}$', r'$2^{-6}$', r'$2^{-5}$', r'$2^{-4}$', r'$2^{-3}$', r'$2^{-2}$', r'$2^{-1}$', r'$2^{0}$']
+    x_ticks = [r'$2^{-8}$', r'$2^{-7}$', r'$2^{-6}$', r'$2^{-5}$', r'$2^{-4}$', r'$2^{-3}$', r'$2^{-2}$', r'$2^{-1}$']  #, r'$2^{0}$']
     #ax[0].set_ylabel('Min. samples in node')
     ax[0].plot(auuc, label='mAUUC')
     #ax[0].set_xticks([i for i, _ in enumerate(auuc)], a_eps)
     ax[0].set_xticks([i for i, _ in enumerate(auuc)], x_ticks)
     ax[0].set_ylabel('mAUUC')
+    # ax[0].set_ylim(ymin=0)  # This seems really pointless. Printing effectively one straight line.
     #ax[0].legend()
     #ax[0].set_title('AUUC')
 
@@ -980,12 +1008,19 @@ if __name__ == "__main__":
                 undersampling = False
         except:
             undersampling = False
+        try:
+            if parameters[7] == 'True':
+                auto_parameters = True
+            else:
+                auto_parameters = False
+        except:
+            auto_parameters = False
     elif model == 'gp' or model == 'gpy':
         try:
             a_eps = float(parameters[4])
         except:
-            print("No a_eps provided. Setting a_eps=0.1.")
-            a_eps = 0.1
+            print("No a_eps provided. Using AUTO-mode instead")
+            a_eps = None
         try:
             plot = bool(parameters[5])
         except:
@@ -1016,12 +1051,16 @@ if __name__ == "__main__":
     if model == 'gp':
         tmp = train_dirichlet_gp(data, file_name_stub, dataset, size, a_eps=a_eps)
     elif model == 'gpy':
-        tmp = train_dirichlet_gpy(data, file_name_stub, dataset, size, a_eps=a_eps, plots=plot)
+        if a_eps is None:
+            tmp = train_dirichlet_gpy(data, file_name_stub, dataset, size, a_eps=a_eps, auto=True)
+        else:            
+            tmp = train_dirichlet_gpy(data, file_name_stub, dataset, size, a_eps=a_eps, auto=False)
     elif model == 'tree':
         # Makes no sense training with 1k observations if leaf size is 400.
         tmp = train_honest_tree(data, file_name_stub, dataset, size,
                                 honest=honest, max_leaf_nodes=max_leaf_nodes,
-                                undersampling=undersampling)  # 'honest' was being passed in position for min_sample_leaf
+                                undersampling=undersampling,  # 'honest' was being passed in position for min_sample_leaf
+                                auto_parameters=auto_parameters)
     elif model == 'auuc_uncertainty':
         tmp = dirichlet_gp_auuc_uncertainty(data, file_name_stub,
                                             dataset, size, n_iterations=2000)
