@@ -12,6 +12,8 @@ from gpytorch.kernels import ScaleKernel, RBFKernel
 import torch
 import gpytorch
 import numpy as np
+import copy
+import gc
 
 if False:  # Code does not support any GPU acceleration yet.
     if torch.cuda.is_available():
@@ -178,18 +180,61 @@ class DirichletGPUplift():
         self.model_t = DirichletGP()
         self.model_c = DirichletGP()
         self.mean_negative_log_likelihood = None
+        self.alpha_epsilon = None
 
-    def fit(self, X_t, y_t, X_c, y_c, alpha_eps=0.1, max_iterations=1000):
+    def fit(self, X_t, y_t, X_c, y_c, alpha_eps=0.1, max_iterations=1000, auto_alpha_eps=True):
         """
+        Args:
+        X_t (np.array): Features
+        y_t (np.array): Features
+        alpha_eps (float): Parameter for variable transformation
+        max_iterations (int): Maximum number of training iterations
+        auto_alpha_eps (bool): Automatically search for good alpha_eps. Setting this to
+         True will ignore alpha_eps parameter.
         """
-        self.model_t.fit(X_t, y_t, alpha_eps=alpha_eps, training_iter=max_iterations)
-        self.model_c.fit(X_c, y_c, alpha_eps=alpha_eps, training_iter=max_iterations)
         t_observations = y_t.shape[0]
         c_observations = y_c.shape[0]
         tot_observations = t_observations + c_observations
-        self.mean_negative_log_likelihood = (self.model_t.negative_log_likelihood +\
-            self.model_c.negative_log_likelihood) / tot_observations
-        print("Mean negative log-likelihood: {}".format(self.mean_negative_log_likelihood))
+        best_mean_neg_log_likelihood = np.inf
+        if auto_alpha_eps:
+            alpha_eps_list = [2**(-i) for i in range(8)]
+        else:
+            alpha_eps_list = [alpha_eps]
+        for alpha_eps in alpha_eps_list:
+            # Train model, store log-likelihood.
+            # Keep model with best log-likelihood
+            # Perhaps check whether that log-likelihood is at
+            # either end of tried parameter list suggesting that
+            # optimum might be further away.
+            tmp_model_t = DirichletGP()
+            tmp_model_c = DirichletGP()
+            tmp_model_t.fit(X_t, y_t, alpha_eps=alpha_eps, training_iter=max_iterations)
+            tmp_model_c.fit(X_c, y_c, alpha_eps=alpha_eps, training_iter=max_iterations)
+            tmp_mean_neg_log_likelihood = (tmp_model_t.negative_log_likelihood +\
+                tmp_model_c.negative_log_likelihood) / tot_observations
+            print("Alpha_epsilon: {}, MNLL: {}".format(alpha_eps, tmp_mean_neg_log_likelihood))
+            if tmp_mean_neg_log_likelihood < best_mean_neg_log_likelihood:
+                # Store model in self
+                best_mean_neg_log_likelihood = copy.deepcopy(tmp_mean_neg_log_likelihood)
+                best_model_t = copy.deepcopy(tmp_model_t)
+                best_model_c = copy.deepcopy(tmp_model_c)
+                best_alpha_epsilon = alpha_eps
+            del tmp_model_t
+            del tmp_model_c
+            del tmp_mean_neg_log_likelihood
+            gc.collect()
+        self.model_t = best_model_t
+        self.model_c = best_model_c
+        self.alpha_epsilon = best_alpha_epsilon
+        self.mean_negative_log_likelihood = best_mean_neg_log_likelihood
+        # else:
+        #     # Regular fit with just one value in alpha_eps
+        #     self.model_t.fit(X_t, y_t, alpha_eps=alpha_eps, training_iter=max_iterations)
+        #     self.model_c.fit(X_c, y_c, alpha_eps=alpha_eps, training_iter=max_iterations)
+        #     self.mean_negative_log_likelihood = (self.model_t.negative_log_likelihood +\
+        #         self.model_c.negative_log_likelihood) / tot_observations
+        print("Optimal mean negative log-likelihood {} with alpha_epsilon {}".format(
+            self.mean_negative_log_likelihood, self.alpha_epsilon))
 
     def predict_uplift(self, X):
         """
