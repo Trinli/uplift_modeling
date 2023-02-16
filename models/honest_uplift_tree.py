@@ -49,7 +49,8 @@ class HonestUpliftTree:
     class (?). Or should undersampling be included here?
     Train with default parameters?
     """
-    def __init__(self, max_leaf_nodes=None, min_samples_leaf=100):
+    def __init__(self, max_leaf_nodes=None, min_samples_leaf=100,
+                 auto_parameters=False):
         """
         Only initialize model. Training is accomplished with fit().
 
@@ -65,6 +66,7 @@ class HonestUpliftTree:
         self.k = 1  # Undersampling parameter if any
         self.max_leaf_nodes = max_leaf_nodes
         self.min_samples_leaf = min_samples_leaf
+        self.auto_parameters = auto_parameters
 
     def fit(self, X, r, honest_X=None, honest_y=None, honest_t=None, y=None, t=None):
         """
@@ -78,7 +80,53 @@ class HonestUpliftTree:
         """
         # 0. Split data into appropriate sets
         # 1. Train model
-        self.tree.fit(X, r)
+        if self.auto_parameters:
+            # Find min_samples_leaf and max_leaf_nodes automatically from predefined list.
+            # Search through a reasonable space
+            max_leaf_nodes_list = [2**i for i in range(1, 8)]  # Up to 256 nodes
+            min_samples_leaf_list = [2**i for i in range(6, 12)]  # Up to 2048 min
+            parameter_list = itertools.product(max_leaf_nodes_list, min_samples_leaf_list)
+            # Fit tree with five-fold cross-validation within the training set
+            # based on auuc?
+            best_auuc = -1.0  # Worst AUUC possible.
+            cv_folds = 10
+            n_samples = X.shape[0]
+            fold_idx = [[i + j * n_samples // cv_folds for i in range(n_samples // cv_folds)] for j in range(cv_folds)]
+            for max_leaf_nodes, min_samples_leaf in parameter_list:
+                tmp_metrics = []  # Reset metrics for new parameters
+                for i in range(cv_folds):
+                    # N-fold cross-validation
+                    tmp_fold_idx = [item for j, item in enumerate(fold_idx) if j != i]
+                    # Unpack:
+                    train_idx = [item for item in itertools.chain.from_iterable(tmp_fold_idx)]
+                    cross_val_idx = fold_idx[i]
+                    X_tmp = X[train_idx, :]
+                    r_tmp = r[train_idx]
+                    tmp_model = DecisionTreeRegressor(max_leaf_nodes=max_leaf_nodes,
+                                                    min_samples_leaf=min_samples_leaf)
+                    tmp_model.fit(X_tmp, r_tmp)
+                    # Evaluate model on hold-out set:
+                    X_val = X[cross_val_idx, :]
+                    y_val = y[cross_val_idx]
+                    t_val = t[cross_val_idx]
+                    tmp_pred = tmp_model.predict(X_val)
+                    tmp_metric = uplift_metrics.UpliftMetrics(y_val, tmp_pred, t_val, k=2)
+                    tmp_metrics.append(tmp_metric)
+                # Average metrics over folds
+                tmp_auuc = np.average([item.auuc for item in tmp_metrics])
+                # 4. See if model is best so far
+                if tmp_auuc > best_auuc:
+                    best_auuc = tmp_auuc
+                    best_max_leaf_nodes = max_leaf_nodes
+                    best_min_samples_leaf = min_samples_leaf
+                    #best_model = tmp_model
+            self.tree = DecisionTreeRegressor(max_leaf_nodes=best_max_leaf_nodes,
+                                              min_samples_leaf=best_min_samples_leaf)
+            self.tree.fit(X, r)
+            self.max_leaf_nodes = best_max_leaf_nodes
+            self.min_samples_leaf = best_min_samples_leaf
+        else:
+            self.tree.fit(X, r)
         # 2. Predict what leafs honest observations fall into
         if honest_X is not None and honest_y is not None and honest_t is not None:
             self.honest_fit(honest_X, honest_y, honest_t)
