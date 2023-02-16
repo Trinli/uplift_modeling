@@ -123,8 +123,8 @@ def train_dirichlet_gpy(data, file_name_stub="gpy_tmp",
     # and lastly uncertainty of uplift. As both the tree and the gaussian process
     # are kind of double classifiers, the uncertainties for the response models
     # can easily be estimated.
-    #idx = [np.argmax(gp_pred)]
-    idx = [4016, 11808, 16028, 17061]
+    idx = [np.argmax(gp_pred)]
+    # idx = [4016, 11808, 16028, 17061]
     print("Testing set observation with largest tau at {}".format(idx))
     # Print both predictions and uncertainty for this.
 
@@ -374,7 +374,7 @@ def train_honest_tree(data, file_name_stub="tree_tmp",
     # Find observation with "large" uplift and plot that. Need to find a "large" through one single run, and then
     # use that same for other runs.
     # Find max in first 100k tree_pred
-    idx = np.argmax(tree_tau[:100000])
+    idx = np.argmax(tree_tau)
     #idx = 19  # Found this by running line above with 100 000 observations on Criteo 2.
     print("Testing set observation with largest tau at {}".format(idx))
     # Print both predictions and uncertainty for this.
@@ -722,13 +722,15 @@ def plot_a_eps():
 if __name__ == "__main__":
     # 0. Collect some args and run program accordingly.
     print('For tree, use as "python -m experiments.uncertainty_experiments tree dataset size max_leaf_nodes undersampling honest"')
-    print('For DGP, use as "python -m experiments.uncertainty_experiments gpy dataset size')
+    print('For DGP, use as "python -m experiments.uncertainty_experiments dgp dataset size')
     print("Use as 'python -m experiments.uncertainty_experiments model dataset training_set_size max_leaf_nodes honest undersampling")
-    print('Where model is "gpy" or "tree" (no quotation marks)')
-    print('Dataset can be "criteo2", "statbucks", or "hillstrom" (make sure to have the datasets in the ./datasets/ -folder')
-    print('Size is an integer')
-    print("OR 'python -m experiments.uncertainty_experiments model dataset training_set_size alpha_epx")
-    print("OR 'python -m experiments.uncertainty_experiments metrics result_file.csv'")
+    print('Model is "dgp" or "tree" (no quotation marks)')
+    print('Dataset can be "criteo2", "statbucks", or "hillstrom" (make sure to download the Criteo2 dataset to the ./datasets/ -folder')
+    print('Size the training set size and is an integer.')
+    print('max_leaf_nodes is the maximum number of leaf nodes')
+    print('undersampling is boolean and defines whether undersampling should be used (set to "True" for undersampling)')
+    print('honest is boolean and defines whether honest estimation should be used (set to "True" for honest estimation')
+    
     parameters = sys.argv
     # 1. Load appropriate dataset
     tmp = parameters[1]
@@ -804,7 +806,7 @@ if __name__ == "__main__":
                 auto_parameters = False
         except:
             auto_parameters = False
-    elif model == 'gp' or model == 'gpy':
+    elif model == 'gp' or model == 'dgp':
         try:
             a_eps = float(parameters[4])
         except:
@@ -823,7 +825,7 @@ if __name__ == "__main__":
             data.add_set('tree_val', int(size/2), size)
         else:
             data.add_set('tree_train', 0, size)
-    elif model == 'gp' or model == 'gpy':
+    elif model == 'gp' or model == 'dgp':
         data.add_set('gp_train', 0, size)
 
     # 2. Call appropriate function (model)
@@ -832,12 +834,12 @@ if __name__ == "__main__":
         file_name_stub = dataset + "_" + str(size) + '_' + str(max_leaf_nodes) + '_' + str(honest) + '_' + str(undersampling)
     elif model == 'gp':
         file_name_stub = dataset + "_" + str(size) + '_' + 'a_eps_{}'.format(a_eps) # Should contain dataset and downsampling, maybe leaf size for tree    
-    elif model == 'gpy':
+    elif model == 'dgp':
         file_name_stub = dataset + "_" + str(size) + '_' + 'gpy_a_eps_{}'.format(a_eps) # Should contain dataset and downsampling, maybe leaf size for tree    
     # Or actually, write to same file, just pass appropriate parameters to the metrics-object!
 
     # 3. Pass on name stub for all files produced. Maybe also result file.
-    if model == 'gpy':
+    if model == 'dgp':
         if a_eps is None:
             tmp = train_dirichlet_gpy(data, file_name_stub, dataset, size, a_eps=a_eps, auto=True)
         else:            
@@ -849,7 +851,7 @@ if __name__ == "__main__":
                                 undersampling=undersampling,  # 'honest' was being passed in position for min_sample_leaf
                                 auto_parameters=auto_parameters)
     else:
-        print("Model {} not specified. Select 'gpy' or 'tree'.".format(model))
+        print("Model {} not specified. Select 'dgp' or 'tree'.".format(model))
 
     print("Training done.")
     if model != 'auuc_uncertainty':
