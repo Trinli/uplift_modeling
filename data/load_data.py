@@ -1009,3 +1009,8 @@ def get_voter_data():
 def get_lenta_test_data():
     data = DatasetCollection("./datasets/lenta_mini.csv", LENTA_FORMAT)
     return data
+
+def get_starbucks_data():
+    data = DatasetCollection('./datasets/' + STARBUCKS_FORMAT['file_name'],
+                             STARBUCKS_FORMAT)
+    return data
