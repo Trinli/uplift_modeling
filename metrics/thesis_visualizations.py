@@ -1,6 +1,8 @@
 """
 This file contains code to reproduce the graph for explaining AUUC used in my thesis.
+This file also contains code to reproduce the plot for "similarly refined."
 Run from terminal with "python -m metrics.auuc_visualization"
+
 """
 
 import metrics.uplift_metrics as um
@@ -84,6 +86,53 @@ def visualize_auuc():
     # Don't set y-range. Sets smallest to min(y_points) automatically.
     plt.tight_layout(h_pad=1)
     plt.savefig('./figures/auuc.pdf')  #, bbox_inches='tight')
+    plt.clf()
+
+
+def plot_similarly_refined():
+    """
+    Function that plots the image for "similarly refined" in
+    my thesis.
+    """
+    # First one constant function and one piecewise consstant
+    # that takes two values:
+    # No specific numbers for x-axis ("score" of observations)
+    # y-axis represents p(y=1 \vert x)
+    x_0 = np.array([0.0, 1.0])
+    p_0 = np.array([0.65, 0.65])
+    x_1 = np.array([0.0, 0.4, 0.4, 1.0])
+    p_1 = np.array([0.25, 0.25, 0.8, 0.8])
+
+    fig = plt.figure(figsize=(16, 6))
+    ax12 = fig.add_subplot(121)
+    ax21 = fig.add_subplot(122)
+    plt.rcParams['font.size'] = 28
+
+    ax12.plot(x_0, p_0, label=r'$p(y=1 \vert x, w=1)$')
+    #ax12.set_ylabel(r'$p(y=1 \vert x)')
+    ax12.plot(x_1, p_1, label=r'$p(y=1 \vert x, w=0)$')
+    ax12.set_xlabel('x')
+    ax12.set_xticks([0.4])
+    ax12.set_xticklabels([r'$s_1$'])
+    ax12.set_yticks([0.0, 1.0])
+    ax12.legend(bbox_to_anchor=(0, 1.02, 2.06, 1.02), ncol=2, loc=3, mode='expand')  #, 1, 0.2),
+    #            mode='expand', borderaxespad=0, ncol=2)  #, bbox_transform=fig.transFigure, ncol=3)
+    #ax12.legend()
+
+    x_2 = np.array([0.0, 0.4, 0.4, 0.55, 0.55, 1.0])
+    p_2 = np.array([0.6, 0.6, 0.4, 0.4, 0.8, 0.8])
+    x_3 = np.array([0.0, 0.2, 0.2, 0.7, 0.7, 1.0])
+    p_3 = np.array([0.5, 0.5, 0.7, 0.7, 0.6, 0.6])
+    ax21.plot(x_2, p_2, label=r'$p(y=1 \vert x, w=1)$')
+    ax21.plot(x_3, p_3, label=r'$p(y=1 \vert x, w=0)$')
+    ax21.set_xlabel('x')
+    #ax21.set_yticks([0.0, 1.0])
+    ax21.set_yticks([])
+    ax21.set_xticks([0.2, 0.4, 0.55, 0.7])
+    ax21.set_xticklabels([r'$s_2$', r'$s_3$', r'$s_4$', r'$s_5$'])
+
+    plt.tight_layout(h_pad=1)
+    plt.savefig('./figures/similarly_refined.pdf')
     plt.clf()
 
 
