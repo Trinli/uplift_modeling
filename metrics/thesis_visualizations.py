@@ -109,15 +109,12 @@ def plot_similarly_refined():
     plt.rcParams['font.size'] = 28
 
     ax12.plot(x_0, p_0, label=r'$p(y=1 \vert x, w=1)$')
-    #ax12.set_ylabel(r'$p(y=1 \vert x)')
     ax12.plot(x_1, p_1, label=r'$p(y=1 \vert x, w=0)$')
     ax12.set_xlabel('x')
     ax12.set_xticks([0.4])
     ax12.set_xticklabels([r'$s_1$'])
     ax12.set_yticks([0.0, 1.0])
-    ax12.legend(bbox_to_anchor=(0, 1.02, 2.06, 1.02), ncol=2, loc=3, mode='expand')  #, 1, 0.2),
-    #            mode='expand', borderaxespad=0, ncol=2)  #, bbox_transform=fig.transFigure, ncol=3)
-    #ax12.legend()
+    ax12.legend(bbox_to_anchor=(0, 1.02, 2.06, 1.02), ncol=2, loc=3, mode='expand')
 
     x_2 = np.array([0.0, 0.4, 0.4, 0.55, 0.55, 1.0])
     p_2 = np.array([0.6, 0.6, 0.4, 0.4, 0.8, 0.8])
@@ -126,7 +123,6 @@ def plot_similarly_refined():
     ax21.plot(x_2, p_2, label=r'$p(y=1 \vert x, w=1)$')
     ax21.plot(x_3, p_3, label=r'$p(y=1 \vert x, w=0)$')
     ax21.set_xlabel('x')
-    #ax21.set_yticks([0.0, 1.0])
     ax21.set_yticks([])
     ax21.set_xticks([0.2, 0.4, 0.55, 0.7])
     ax21.set_xticklabels([r'$s_2$', r'$s_3$', r'$s_4$', r'$s_5$'])
@@ -136,6 +132,80 @@ def plot_similarly_refined():
     plt.clf()
 
 
+def plot_similarly_refined_2():
+    """
+    Version of above where only second plot is created.
+    """
+    fig = plt.figure(figsize=(8, 6))
+    ax21 = fig.add_subplot(111)
+    plt.rcParams['font.size'] = 28
+
+    x_2 = np.array([0.0, 0.4, 0.4, 0.55, 0.55, 1.0])
+    p_2 = np.array([0.6, 0.6, 0.4, 0.4, 0.8, 0.8])
+    x_3 = np.array([0.0, 0.2, 0.2, 0.7, 0.7, 1.0])
+    p_3 = np.array([0.5, 0.5, 0.7, 0.7, 0.6, 0.6])
+    ax21.plot(x_2, p_2, label=r'$p(y=1 \vert x, w=1)$')
+    ax21.plot(x_3, p_3, label=r'$p(y=1 \vert x, w=0)$')
+    ax21.set_xlabel('x')
+    ax21.set_yticks([])
+    ax21.set_xticks([0.2, 0.4, 0.55, 0.7])
+    ax21.set_xticklabels([r'$s_1$', r'$s_2$', r'$s_3$', r'$s_4$'])
+    plt.legend(bbox_to_anchor=(0, 1.02, 1.0, 1.02), loc=3)  # ncol=2, loc=3, mode='expand')
+    #ax21.legend()
+
+    plt.tight_layout(h_pad=1)
+    plt.savefig('./figures/similarly_refined_2.pdf')
+    plt.clf()
+
+
+def plot_similarly_refined_3():
+    """
+    Function that plots the image for "similarly refined" in
+    my thesis. Version 3.
+    """
+    # First one constant function and one piecewise consstant
+    # that takes two values:
+    # No specific numbers for x-axis ("score" of observations)
+    # y-axis represents p(y=1 \vert x)
+    x_0 = np.array([0.0, .4, .4, 1.0])
+    p_0 = np.array([0.35, 0.35, .8, .8])
+    #x_1 = np.array([0.0, 0.4, 0.4, 1.0])
+    #p_1 = np.array([0.25, 0.25, 0.8, 0.8])
+    #x_2 = np.array([0.0, 0.4, 0.4, 0.55, 0.55, 1.0])
+    x_2 = np.array([0.0, 0.2, 0.2, 0.7, 0.7, 1.0])
+    p_2 = np.array([0.15, 0.15, 0.5, 0.5, 0.95, 0.95])
+    x_3 = np.array([0.0, 0.2, 0.2, 0.7, 0.7, 1.0])
+    p_3 = np.array([0.3, 0.3, 0.7, 0.7, 0.55, 0.55])
+
+    fig = plt.figure(figsize=(16, 6))
+    ax12 = fig.add_subplot(121)
+    ax21 = fig.add_subplot(122) #, sharey=ax12)
+    plt.rcParams['font.size'] = 28
+
+    ax12.plot(x_0, p_0, label=r'$p(y=1 \vert x, w=1)$')
+    ax12.plot(x_3, p_3, label=r'$p(y=1 \vert x, w=0)$')
+    ax12.set_xlabel('x')
+    ax12.set_xticks([0.0, 0.2, 0.4, 0.7, 1.0])
+    ax12.set_xticklabels([r'$s_0$', r'$s_1$', r'$s_2$', r'$s_3$', r'$s_4$'])
+    ax12.set_yticks([0.0, 1.0])
+    ax12.legend(bbox_to_anchor=(0, 1.02, 2.06, 1.02), ncol=2, loc=3, mode='expand')
+
+    ax21.plot(x_2, p_2, label=r'$p(y=1 \vert x, w=1)$')
+    ax21.plot(x_3, p_3, label=r'$p(y=1 \vert x, w=0)$')
+    ax21.set_xlabel('x')
+    ax21.set_ylim([0, 1])
+    ax21.set_yticks([])
+    ax21.set_xticks([0.0, 0.2, 0.4, 0.7, 1.0])
+    ax21.set_xticklabels([r'$s_0$', r'$s_1$', r'$s_2$', r'$s_3$', r'$s_4$'])
+    #ax21.set_xticks([0.2, 0.4, 0.55, 0.7])
+    #ax21.set_xticklabels([r'$s_2$', r'$s_3$', r'$s_4$', r'$s_5$'])
+
+    plt.tight_layout(h_pad=1)
+    plt.savefig('./figures/similarly_refined_4.pdf')
+    plt.clf()
+
+
 if __name__ == '__main__':
     # Run actual code
     visualize_auuc()
+    plot_similarly_refined()
