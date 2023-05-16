@@ -24,6 +24,7 @@ sys.path.insert(0,'../dirichletGPC/src')
 # sys.path.append("/Users/notto/Desktop/dirichletGPC/src")
 import heteroskedastic
 
+print("This implementation seems to have some flaws. Use the implementation in gpy_dirichlet.py instead.")
 
 class DirichletGP():
     """
