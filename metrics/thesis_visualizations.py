@@ -63,7 +63,7 @@ def visualize_auuc():
     ax21.plot(x_points, y_points_2, color='tab:blue')
     ax21.fill_between(x_points, 0, y_points_rand_2, color='tab:green', alpha=0.3)  # Area of rand
     ax21.plot(x_points, y_points_rand_2, color='tab:orange')
-    #ax21.set_ylabel(r'$\mathbf{E}(y)$')
+    #ax21.set_ylabel(r'$\mathbf{E}(\textnormal{y})$')
     ax21.set_ylabel('Uplift')
     ax21.set_xlabel('Treatment rate')
     # 3. Plot the expected conversion rate. Graph zeroed at zero. Add suitable shapes
@@ -80,7 +80,7 @@ def visualize_auuc():
     ax12.plot(x_points, y_points_rand, color='tab:orange')  # Random line
     #ax12.fill_between(x_points, 0, y_points_rand, hatch='/', alpha=0.0)  # Random area
     ax12.set_ylim((0, max(y_points_3)*1.02))  # Add 2% gap
-    ax12.set_ylabel(r'$\mathbb{E}(y)$')
+    ax12.set_ylabel(r'$\mathbb{E}(\textnormal{y})$')
     ax12.set_xlabel('Treatment rate')
     #fig.supxlabel('Treatment rate')
     # Don't set y-range. Sets smallest to min(y_points) automatically.
@@ -97,7 +97,7 @@ def plot_similarly_refined():
     # First one constant function and one piecewise consstant
     # that takes two values:
     # No specific numbers for x-axis ("score" of observations)
-    # y-axis represents p(y=1 \vert x)
+    # y-axis represents p(\textnormal{y}=1 \vert \bm{x})
     x_0 = np.array([0.0, 1.0])
     p_0 = np.array([0.65, 0.65])
     x_1 = np.array([0.0, 0.4, 0.4, 1.0])
@@ -108,8 +108,8 @@ def plot_similarly_refined():
     ax21 = fig.add_subplot(122)
     plt.rcParams['font.size'] = 28
 
-    ax12.plot(x_0, p_0, label=r'$p(y=1 \vert x, w=1)$')
-    ax12.plot(x_1, p_1, label=r'$p(y=1 \vert x, w=0)$')
+    ax12.plot(x_0, p_0, label=r'$p(\textnormal{y}=1 \vert \bm{x}, w=1)$')
+    ax12.plot(x_1, p_1, label=r'$p(\textnormal{y}=1 \vert \bm{x}, w=0)$')
     ax12.set_xlabel('x')
     ax12.set_xticks([0.4])
     ax12.set_xticklabels([r'$s_1$'])
@@ -120,8 +120,8 @@ def plot_similarly_refined():
     p_2 = np.array([0.6, 0.6, 0.4, 0.4, 0.8, 0.8])
     x_3 = np.array([0.0, 0.2, 0.2, 0.7, 0.7, 1.0])
     p_3 = np.array([0.5, 0.5, 0.7, 0.7, 0.6, 0.6])
-    ax21.plot(x_2, p_2, label=r'$p(y=1 \vert x, w=1)$')
-    ax21.plot(x_3, p_3, label=r'$p(y=1 \vert x, w=0)$')
+    ax21.plot(x_2, p_2, label=r'$p(\textnormal{y}=1 \vert \bm{x}, w=1)$')
+    ax21.plot(x_3, p_3, label=r'$p(\textnormal{y}=1 \vert \bm{x}, w=0)$')
     ax21.set_xlabel('x')
     ax21.set_yticks([])
     ax21.set_xticks([0.2, 0.4, 0.55, 0.7])
@@ -144,8 +144,8 @@ def plot_similarly_refined_2():
     p_2 = np.array([0.6, 0.6, 0.4, 0.4, 0.8, 0.8])
     x_3 = np.array([0.0, 0.2, 0.2, 0.7, 0.7, 1.0])
     p_3 = np.array([0.5, 0.5, 0.7, 0.7, 0.6, 0.6])
-    ax21.plot(x_2, p_2, label=r'$p(y=1 \vert x, w=1)$')
-    ax21.plot(x_3, p_3, label=r'$p(y=1 \vert x, w=0)$')
+    ax21.plot(x_2, p_2, label=r'$p(\textnormal{y}=1 \vert \bm{x}, w=1)$')
+    ax21.plot(x_3, p_3, label=r'$p(\textnormal{y}=1 \vert \bm{x}, w=0)$')
     ax21.set_xlabel('x')
     ax21.set_yticks([])
     ax21.set_xticks([0.2, 0.4, 0.55, 0.7])
@@ -166,7 +166,7 @@ def plot_similarly_refined_3():
     # First one constant function and one piecewise consstant
     # that takes two values:
     # No specific numbers for x-axis ("score" of observations)
-    # y-axis represents p(y=1 \vert x)
+    # y-axis represents p(\textnormal{y}=1 \vert \bm{x})
     x_0 = np.array([0.0, .4, .4, 1.0])
     p_0 = np.array([0.35, 0.35, .8, .8])
     #x_1 = np.array([0.0, 0.4, 0.4, 1.0])
@@ -182,16 +182,16 @@ def plot_similarly_refined_3():
     ax21 = fig.add_subplot(122) #, sharey=ax12)
     plt.rcParams['font.size'] = 28
 
-    ax12.plot(x_0, p_0, label=r'$p(y=1 \vert x, w=1)$')
-    ax12.plot(x_3, p_3, label=r'$p(y=1 \vert x, w=0)$')
+    ax12.plot(x_0, p_0, label=r'$p(\textnormal{y}=1 \vert \bm{x}, w=1)$')
+    ax12.plot(x_3, p_3, label=r'$p(\textnormal{y}=1 \vert \bm{x}, w=0)$')
     ax12.set_xlabel('x')
     ax12.set_xticks([0.0, 0.2, 0.4, 0.7, 1.0])
     ax12.set_xticklabels([r'$s_0$', r'$s_1$', r'$s_2$', r'$s_3$', r'$s_4$'])
     ax12.set_yticks([0.0, 1.0])
     ax12.legend(bbox_to_anchor=(0, 1.02, 2.06, 1.02), ncol=2, loc=3, mode='expand')
 
-    ax21.plot(x_2, p_2, label=r'$p(y=1 \vert x, w=1)$')
-    ax21.plot(x_3, p_3, label=r'$p(y=1 \vert x, w=0)$')
+    ax21.plot(x_2, p_2, label=r'$p(\textnormal{y}=1 \vert \bm{x}, w=1)$')
+    ax21.plot(x_3, p_3, label=r'$p(\textnormal{y}=1 \vert \bm{x}, w=0)$')
     ax21.set_xlabel('x')
     ax21.set_ylim([0, 1])
     ax21.set_yticks([])
@@ -209,3 +209,4 @@ if __name__ == '__main__':
     # Run actual code
     visualize_auuc()
     plot_similarly_refined()
+    # MAKE Y AND X VECTORS AND RANDOM VARIABLES
