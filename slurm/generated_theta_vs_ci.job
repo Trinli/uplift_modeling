@@ -1,0 +1,14 @@
+#!/bin/bash
+#SBATCH -M ukko
+#SBATCH -c 1
+#SBATCH -t 23:59:59
+#SBATCH --mem=8G
+#SBATCH -p gpu
+#SBATCH -o slurm_out/out%J.txt
+#SBATCH -e slurm_out/out_err%J.txt
+#SBATCH --array=1-10
+hostname
+source ~/.bashrc
+export PYTHONPATH=$PYTHONPATH:.
+n=$SLURM_ARRAY_TASK_ID
+srun python -m experiments.uncertainty_vs_generated
