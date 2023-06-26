@@ -11,8 +11,12 @@ from which the observation was drawn).
 Do this N times to get some sort of distribution. 19/20 should fit into the
 95% credible intervals.
 """
+import os
 import random
+import sys
 import numpy as np
+from itertools import product
+from pathlib import Path
 import data.load_data as ld
 import metrics.uplift_metrics as um
 import models.honest_uplift_tree as honest_tree
@@ -22,7 +26,17 @@ import models.gpy_dirichlet as GPY
 data_format = ld.STARBUCKS_FORMAT  # Change SEED in data format to re-randomize.
 data_format['file_name'] = './datasets/' + data_format['file_name']
 
-def main(model='tree'):
+def main(model='tree', max_leaf_nodes=12, min_leaf_size=100, alpha_eps=None):
+    """
+    Args:
+    model (str): 'tree' or 'dgp'. Decides which model is trained.
+    max_leaf_nodes (int): Max number of leaf nodes in tree.
+     If model is 'dgp', this is ignored.
+    min_leaf_size (int): Min number of observations in leaf.
+     If model is 'dgp', this is ignored.
+    alpha_eps (float): If 'None', alpha_eps will be selected automatically.
+     Parameter for DGP-model. If model is 'tree', this is ignored.
+    """
     honest = True
     seed = random.randint(0, 2**16)
     print("Using seed: {}".format(seed))
@@ -122,9 +136,11 @@ def main(model='tree'):
         t_honest = np.random.binomial(1, p=.5, size=t_honest_.shape[0]).astype(bool)
         new_honest_labels = theta_vec(X_honest, t_honest)
 
-        tree_model = honest_tree.HonestUpliftTree(max_leaf_nodes=12, min_samples_leaf=100)  # Previous experiments used max_leaf_nodes=12 for Starbucks
-        tree_model.fit(X, r, honest_X=X_honest, honest_y=new_honest_labels['y'], honest_t=t_honest,
-                    y=new_labels['y'], t=t)
+        # Previous experiments used max_leaf_nodes=12 for Starbucks
+        tree_model = honest_tree.HonestUpliftTree(max_leaf_nodes=max_leaf_nodes,
+                                                  min_samples_leaf=min_leaf_size)  
+        tree_model.fit(X, r, honest_X=X_honest, honest_y=new_honest_labels['y'], 
+                       honest_t=t_honest, y=new_labels['y'], t=t)
 
         X_test = data['testing_set']['X']
         t_test_ = data['testing_set']['t']
@@ -134,9 +150,6 @@ def main(model='tree'):
         # "Generate" t. 0 and 1 for every observation. Maybe randomize the t for training.
         predictions = tree_model.predict_uplift(X_test)
         tau_pred = np.array([item['tau'] for item in predictions])
-        # Sanity check
-        metrics = um.UpliftMetrics(y_test['y'], tau_pred, t_test)
-        print(metrics)
 
         # for i in range(10):
         #     print('=' * 40)
@@ -192,7 +205,17 @@ def main(model='tree'):
             within_ci_by_leaf.append([fraction_within_ci, len(items_in_leaf)])
         within_ci_overall = np.average([item[0] for item in within_ci_by_leaf], weights=[item[1] for item in within_ci_by_leaf])
         print("{}% of generating mean(theta_tau_i) per leaf is within the predicted credible intervals".format(within_ci_overall))
+
+        test_description = 'mean(theta_tau_i) per leaf within 95% CI: {}, observation theta_tau_i within 95% CI: {}'.format(
+            within_ci_overall, generating_ite_within_ci)
+        test_description += ', average CI: {}'.format(tree_average_width)
+        # Save metrics
+        metrics = um.UpliftMetrics(y_test['y'], tau_pred, t_test,
+                                   test_description=test_description)
+        print(metrics)
+        metrics.write_to_csv('./results/tree_overall_theta_vs_ci.csv')
         return within_ci_overall, generating_ite_within_ci
+
 
     elif model == 'dgp':
         X = data['gp_train']['X']
@@ -205,7 +228,12 @@ def main(model='tree'):
         y_c = new_labels['y'][~t]
 
         dgp_model = GPY.DirichletGPUplift()
-        dgp_model.fit(X_t, y_t, X_c, y_c, alpha_eps=.1, auto_alpha_eps=True)
+        if alpha_eps is None:
+            print("Training dgp-model with automatic alpha_eps selection...")
+            dgp_model.fit(X_t, y_t, X_c, y_c, alpha_eps=.1, auto_alpha_eps=True)
+        else:
+            print("Training dgp-model with alpha_eps: {}".format(alpha_eps))
+            dgp_model.fit(X_t, y_t, X_c, y_c, alpha_eps=alpha_eps, auto_alpha_eps=False)
         X_test = data['testing_set']['X']
         t_test_ = data['testing_set']['t']
         t_test = np.random.binomial(1, p=.5, size=t_test_.shape[0]).astype(bool)
@@ -228,18 +256,125 @@ def main(model='tree'):
         # be tested as we don't know the ground truth).
         dgp_average_width = dgp_model.mean_credible_interval_width(X_test, 0.95)
         test_description = 'theta gen ite in 95% CI: {}, dgp_average_width: {}'.format(theta_gen_ite_in_ci, dgp_average_width)
+        test_description += ', average CI: {}'.format(dgp_average_width)
+        if alpha_eps is not None:
+            # Alpha_eps was specifically selected
+            test_description += ', alpha_eps: {}'.format(alpha_eps)
         metrics = um.UpliftMetrics(y_test['y'], tau_pred, t_test, test_description=test_description)
         metrics.write_to_csv('./results/generated_theta_ITE_vs_CI_dgp.csv')
         print(metrics)
         return theta_gen_ite_in_ci
 
 
-res = []
-for i in range(10):  # 400 was a bit of overkill...
-    res.append(main('tree'))  # Checking how well the generating parameters of the leafs fall within estimated 95% leaf-CI's
-    # Should we also check how often the generating parameters of individual observations fall within the 95% CI's?
+# res = []
+# for i in range(10):  # 400 was a bit of overkill...
+#     res.append(main('tree'))  # Checking how well the generating parameters of the leafs fall within estimated 95% leaf-CI's
+#     # Should we also check how often the generating parameters of individual observations fall within the 95% CI's?
 
-res_dgp = []
-for i in range(10):
-    res_dgp.append(main('dgp'))
+# res_dgp = []
+# for i in range(10):
+#     res_dgp.append(main('dgp'))
 
+def generate_slurm_scripts(clear_old_scripts=True):
+    # No GPU needed. And trees are fast.
+    # Check if tmp exists:
+    if not os.path.exists('./tmp/'):
+        # Create path:
+        os.mkdir('./tmp/')
+    # Remove *.job's from tmp
+    # os.remove('./tmp/*.job')
+    if clear_old_scripts:
+        for p in Path("./tmp/").glob("*.job"):
+            p.unlink()
+    models = ['tree', 'dgp']
+    alpha_eps_list = [2**-i for i in range(1, 9)]  # Negative powers.
+    min_sample_leaf_list = [2**i for i in range(4, 13)]  # From 64 to 2**12=4096, experiments were run with 100
+    max_leaf_nodes_list = [2**i for i in range(1, 9)]  # 81 for Criteo, 34 for Hillstrom, 12 for Starbucks in main experiments
+    files = []
+
+    for model in models:
+        if model == 'tree':
+            for max_leaf_nodes, min_leaf_size in product(max_leaf_nodes_list, min_sample_leaf_list):
+                text = """#!/bin/bash
+#SBATCH --job-name=generated_{0}_{1}_{2}
+#SBATCH -o ./slurm_out/result_{0}_{1}_{2}.txt
+#SBATCH -M ukko
+#SBATCH -c 1
+#SBATCH -t 1:00:00
+#SBATCH --mem=8G
+#SBATCH -p short
+export PYTHONPATH=$PYTHONPATH:.
+srun hostname
+srun sleep 5
+srun python -m experiments.uncertainty_vs_generated {0} {1} {2}
+""".format(model, max_leaf_nodes, min_leaf_size)
+
+                tmp_filename = './tmp/slurm_generated_{0}_{1}_{2}.job'.format(
+                    model, max_leaf_nodes, min_leaf_size)
+                with open(tmp_filename, 'w') as handle:
+                    handle.write(text)
+                # Add filename to list to later write to bash-script.
+                files.append(tmp_filename)
+
+        elif model == 'dgp':
+            for alpha_eps in alpha_eps_list:
+                text = """#!/bin/bash
+#SBATCH --job-name=generated_{0}_{1}
+#SBATCH -o ./slurm_out/result_{0}_{1}.txt
+#SBATCH -M ukko
+#SBATCH -c 1
+#SBATCH -t 4:00:00
+#SBATCH --mem=16G
+#SBATCH -p short
+export PYTHONPATH=$PYTHONPATH:.
+srun hostname
+srun sleep 5
+srun python -m experiments.uncertainty_vs_generated {0} {1}
+""".format(model, alpha_eps)
+
+                tmp_filename = './tmp/slurm_generated_{0}_{1}.job'.format(
+                    model, alpha_eps)
+                with open(tmp_filename, 'w') as handle:
+                    handle.write(text)
+                # Add filename to list to later write to bash-script.
+                files.append(tmp_filename)
+
+    # Store all filenames to bash script
+    with open('./tmp/bash_script.sh', 'w') as handle:
+        handle.write('#!/bin/bash\n')
+        for item in files:
+            handle.write("sbatch " + item + "\n")
+
+
+
+
+if __name__ == '__main__':
+    print("Run as")
+    print("'python -m experiments.uncertainty_vs_generated tree max_leaf_nodes min_leaf_size'")
+    print("for tree model where max_leaf_nodes is int and min_leaf_size is int.")
+    print("OR")
+    print("'python -m experiments.uncertainty_vs_generated dgp alpha_eps")
+    print("for a DGP-model. If alpha_eps is empty, it will be automatically selected.")
+    print("OR")
+    print("'python -m experiments.uncertainty_vs_generated slurm'")
+    print("to generate slurm-scripts. Run scripts with ./tmp/bash_script.sh")
+    # 1. Read command line parameters
+    # 2. Run all on Starbucks 32K for now with the known generative model.
+    # -repeat experiments with same parameters should be run by slurm (not inside this script).
+    parameters = sys.argv
+    if parameters[1] == 'tree':
+        # Read in max_leaf_nodes and min_leaf_size, if available.
+        max_leaf_nodes = int(parameters[2])
+        min_leaf_size = int(parameters[3])
+        main('tree', max_leaf_nodes=max_leaf_nodes, min_leaf_size=min_leaf_size)
+    elif parameters[1] == 'dgp':
+        # Read in alpha_eps, if available
+        try:
+            alpha_eps = float(parameters[2])
+        except:
+            alpha_eps = None
+        # Run experiment:
+        main('dgp', alpha_eps=alpha_eps)
+    elif parameters[1] == 'slurm':
+        # Generate appropriate slurm scripts
+        generate_slurm_scripts()
