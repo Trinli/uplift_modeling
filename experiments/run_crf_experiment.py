@@ -118,7 +118,7 @@ def train_and_evaluate_model(training_set, data, filename, k):
     numpy_to_csv(training_set, filename)
 
     #robjects.r("source('model_crf_experiment.R')")  # Where is this now?
-    robject.r("source('models/uplift_random_forest.R')")  # Is this correct?
+    robjects.r("source('models/uplift_random_forest.R')")  # Is this correct?
     robjects.r("train_crf('{}')".format(filename))
 
     # Now store validation or testing set
