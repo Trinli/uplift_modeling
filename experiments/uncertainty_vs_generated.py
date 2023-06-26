@@ -25,6 +25,7 @@ import models.gpy_dirichlet as GPY
 
 data_format = ld.STARBUCKS_FORMAT  # Change SEED in data format to re-randomize.
 data_format['file_name'] = './datasets/' + data_format['file_name']
+size = 32000  # Number of observations to include in training set
 
 def main(model='tree', max_leaf_nodes=12, min_leaf_size=100, alpha_eps=None):
     """
@@ -42,7 +43,6 @@ def main(model='tree', max_leaf_nodes=12, min_leaf_size=100, alpha_eps=None):
     print("Using seed: {}".format(seed))
     data_format['random_seed'] = seed
     data = ld.DatasetCollection(data_format['file_name'], data_format=data_format)
-    size = 32000
     # Add suitable sets
     if model == 'tree':
         if honest:
@@ -151,12 +151,8 @@ def main(model='tree', max_leaf_nodes=12, min_leaf_size=100, alpha_eps=None):
         predictions = tree_model.predict_uplift(X_test)
         tau_pred = np.array([item['tau'] for item in predictions])
 
-        # for i in range(10):
-        #     print('=' * 40)
-        #     print("Generating value (theta_tau): {}".format(y_test['theta_tau'][i]))
-        #     print("Predicted value: {}".format(tau_pred[i]))
-        #     print("Estimated CI lower: {} \t upper: {}".format(predictions[i]['hpd']['lower_bound'], predictions[i]['hpd']['upper_bound']))
-
+        # Count how many of the generating parameters (observation by observation) are within
+        # predicted CI's (ITE).
         counter = 0
         for i, item in enumerate(predictions):
             if item['hpd']['lower_bound'] <= y_test['theta_tau'][i]:
@@ -209,6 +205,8 @@ def main(model='tree', max_leaf_nodes=12, min_leaf_size=100, alpha_eps=None):
         test_description = 'mean(theta_tau_i) per leaf within 95% CI: {}, observation theta_tau_i within 95% CI: {}'.format(
             within_ci_overall, generating_ite_within_ci)
         test_description += ', average CI: {}'.format(tree_average_width)
+        test_description += ', max_leaf_nodes: {}'.format(max_leaf_nodes)
+        test_description += ', min_leaf_size: {}'.format(min_leaf_size)
         # Save metrics
         metrics = um.UpliftMetrics(y_test['y'], tau_pred, t_test,
                                    test_description=test_description)
@@ -257,9 +255,12 @@ def main(model='tree', max_leaf_nodes=12, min_leaf_size=100, alpha_eps=None):
         dgp_average_width = dgp_model.mean_credible_interval_width(X_test, 0.95)
         test_description = 'theta gen ite in 95% CI: {}, dgp_average_width: {}'.format(theta_gen_ite_in_ci, dgp_average_width)
         test_description += ', average CI: {}'.format(dgp_average_width)
+        test_description += ', MNLL: {}'.format(dgp_model.mean_negative_log_likelihood)
         if alpha_eps is not None:
             # Alpha_eps was specifically selected
             test_description += ', alpha_eps: {}'.format(alpha_eps)
+        else:
+            test_description += ', alpha_eps: Auto'
         metrics = um.UpliftMetrics(y_test['y'], tau_pred, t_test, test_description=test_description)
         metrics.write_to_csv('./results/generated_theta_ITE_vs_CI_dgp.csv')
         print(metrics)
