@@ -6,6 +6,7 @@ This is also done for the DGP-based model.
 """
 import csv
 import re
+import numpy as np
 import matplotlib.pyplot as plt
 plt.rcParams['font.size'] = 14  # Increase default font size from 10 to 12.
 
@@ -75,44 +76,43 @@ def tree_ci_vs_theta():
     # MIGHT NEED TO RUN THE EXPERIMENT ALSO WITH LARGER MAX NUMBER OF LEAF NODES.
 
     plt.rcParams['font.size'] = 12
-    fig, ax = plt.subplots(2, 2, sharey=True, sharex=True, constrained_layout=True)
-    #fig.tight_layout(pad=4)
-
+    fig, ax = plt.subplots(1, 3, sharey=True, sharex=True, figsize=(6.4, 2.4))  #, constrained_layout=True)
+    fig.tight_layout(pad=2.3)
     # AUUC
-    im_aci = ax[0, 0].imshow(AUUC, cmap='plasma_r')
-    plt.colorbar(im_aci, ax=ax[0, 0], fraction=0.05)
+    im_aci = ax[0].imshow(AUUC, cmap='plasma_r')
+    plt.colorbar(im_aci, ax=ax[0], fraction=0.05)
     # Add ticks and something.
-    ax[0, 0].set_yticks([i for i in range(9)], [str(2**(item+4)) for item in range(9)])
-    #ax[0, 0].set_xticks([i for i in range(8)], [r'$2^1$', r'$2^2$', r'$2^3$', r'$2^4$', r'$2^5$', r'$2^6$', r'$2^7$', r'$2^8$'])
-    ax[0, 0].set_title(r"AUUC")
+    ax[0].set_yticks([i for i in range(9)], [str(2**(item+4)) for item in range(9)])
+    ax[0].set_xticks([i for i in range(8)], [r'$2^1$', r'$2^2$', r'$2^3$', r'$2^4$', r'$2^5$', r'$2^6$', r'$2^7$', r'$2^8$'])
+    ax[0].set_title(r"AUUC")
     #plt.ylabel('Min. samples in node')
     #plt.xlabel('Max. number of leaf nodes')
-    ax[0, 0].set_ylabel('Min. samples in node')
-    #ax[0, 0].set_xlabel('Max. number of leaf nodes')
+    ax[0].set_ylabel('Min. samples in leaf')
+    ax[0].set_xlabel('Max. #leafs')
 
     # Average CI
-    im_aci = ax[0, 1].imshow(average_CI, cmap='viridis')
-    plt.colorbar(im_aci, ax=ax[0, 1], fraction=0.05)
+    im_aci = ax[1].imshow(average_CI, cmap='viridis')
+    plt.colorbar(im_aci, ax=ax[1], fraction=0.05)
     # Add ticks and something.
-    #ax[0, 1].set_yticks([i for i in range(9)], [str(2**(item+4)) for item in range(9)])
-    #ax[0, 1].set_xticks([i for i in range(8)], [r'$2^1$', r'$2^2$', r'$2^3$', r'$2^4$', r'$2^5$', r'$2^6$', r'$2^7$', r'$2^8$'])
-    ax[0, 1].set_title("Average CI")
+    #ax[1].set_yticks([i for i in range(9)], [str(2**(item+4)) for item in range(9)])
+    ax[1].set_xticks([i for i in range(8)], [r'$2^1$', r'$2^2$', r'$2^3$', r'$2^4$', r'$2^5$', r'$2^6$', r'$2^7$', r'$2^8$'])
+    ax[1].set_title("Average CI")
     #plt.ylabel('Min. samples in node')
     #plt.xlabel('Max. number of leaf nodes')
-    #ax[0, 1].set_ylabel('Min. samples in node')
-    #ax[0, 1].set_xlabel('Max. number of leaf nodes')
+    #ax[1].set_ylabel('Min. samples in node')
+    ax[1].set_xlabel('Max. #leafs')
 
     # theta CATE
-    im_aci = ax[1, 0].imshow(theta_CATE, cmap='plasma_r')
-    plt.colorbar(im_aci, ax=ax[1, 0], fraction=0.05)
+    im_aci = ax[2].imshow(theta_CATE, cmap='plasma_r')
+    plt.colorbar(im_aci, ax=ax[2], fraction=0.05)
     # Add ticks and something.
-    ax[1, 0].set_yticks([i for i in range(9)], [str(2**(item+4)) for item in range(9)])
-    ax[1, 0].set_xticks([i for i in range(8)], [r'$2^1$', r'$2^2$', r'$2^3$', r'$2^4$', r'$2^5$', r'$2^6$', r'$2^7$', r'$2^8$'])
-    ax[1, 0].set_title(r"$\bar{\theta}_i$ within CI (CATE)")
+    #ax[2].set_yticks([i for i in range(9)], [str(2**(item+4)) for item in range(9)])
+    ax[2].set_xticks([i for i in range(8)], [r'$2^1$', r'$2^2$', r'$2^3$', r'$2^4$', r'$2^5$', r'$2^6$', r'$2^7$', r'$2^8$'])
+    ax[2].set_title(r"$\bar{\theta}_i$ within CI (CATE)")
     #plt.ylabel('Min. samples in node')
     #plt.xlabel('Max. number of leaf nodes')
-    ax[1, 0].set_ylabel('Min. samples in node')
-    ax[1, 0].set_xlabel('Max. number of leaf nodes')
+    #ax[2].set_ylabel('Min. samples in node')
+    ax[2].set_xlabel('Max. #leafs')
 
     # theta ITE
     im_aci = ax[1, 1].imshow(theta_ITE, cmap='viridis')
@@ -124,10 +124,63 @@ def tree_ci_vs_theta():
     #plt.ylabel('Min. samples in node')
     #plt.xlabel('Max. number of leaf nodes')
     #ax[1, 1].set_ylabel('Min. samples in node')
-    ax[1, 1].set_xlabel('Max. number of leaf nodes')
+    ax[1, 1].set_xlabel('Max. #leafs')
 
     plt.savefig('./results/uncertainty/tree_theta_within_ci.pdf')
     plt.clf()
+
+
+    if True:  # Alternative 2 x 2 plot with histogram in lower corner.
+        # Plot three colormaps and one histogram for the DGP-results.
+        # This is the image submitted to Neurocomputing after the first peer-review.
+        plt.rcParams['font.size'] = 12
+        fig, ax = plt.subplots(2, 2) #, sharey=True, sharex=True)  #, figsize=(6.4, 2.4))  #, constrained_layout=True)
+        fig.tight_layout()  #pad=3.0)
+        # Average CI
+        im_aci = ax[0, 0].imshow(average_CI, cmap='plasma_r')
+        plt.colorbar(im_aci, ax=ax[0, 0], fraction=0.05)
+        # Add ticks and something.
+        ax[0, 0].set_yticks([i for i in range(9)], [str(2**(item+4)) for item in range(9)])
+        ax[0, 0].set_xticks([i for i in range(8)], [r'$2^1$', r'$2^2$', r'$2^3$', r'$2^4$', r'$2^5$', r'$2^6$', r'$2^7$', r'$2^8$'])
+        ax[0, 0].set_title("Average CI")
+        #plt.ylabel('Min. samples in node')
+        #plt.xlabel('Max. number of leaf nodes')
+        ax[0, 0].set_ylabel('Min. samples in leaf')
+        ax[0, 0].set_xlabel('Max. #leafs')
+
+        # AUUC
+        im_aci = ax[0, 1].imshow(AUUC, cmap='viridis')
+        plt.colorbar(im_aci, ax=ax[0, 1], fraction=0.05)
+        # Add ticks and something.
+        ax[0, 1].set_yticks([i for i in range(9)], [str(2**(item+4)) for item in range(9)])
+        ax[0, 1].set_xticks([i for i in range(8)], [r'$2^1$', r'$2^2$', r'$2^3$', r'$2^4$', r'$2^5$', r'$2^6$', r'$2^7$', r'$2^8$'])
+        ax[0, 1].set_title(r"mAUUC")
+        #plt.ylabel('Min. samples in node')
+        #plt.xlabel('Max. number of leaf nodes')
+        ax[0, 1].set_ylabel('Min. samples in leaf')
+        ax[0, 1].set_xlabel('Max. #leafs')
+
+
+        # theta CATE
+        im_aci = ax[1, 0].imshow(theta_CATE, cmap='plasma_r')
+        plt.colorbar(im_aci, ax=ax[1, 0], fraction=0.05)
+        # Add ticks and something.
+        ax[1, 0].set_yticks([i for i in range(9)], [str(2**(item+4)) for item in range(9)])
+        ax[1, 0].set_xticks([i for i in range(8)], [r'$2^1$', r'$2^2$', r'$2^3$', r'$2^4$', r'$2^5$', r'$2^6$', r'$2^7$', r'$2^8$'])
+        ax[1, 0].set_title(r"Coverage")
+        #plt.ylabel('Min. samples in node')
+        #plt.xlabel('Max. number of leafs')
+        ax[1, 0].set_ylabel('Min. samples in leaf')
+        ax[1, 0].set_xlabel('Max. #leafs')
+
+        # Histogram of theta ITE, i.e
+        im_aci = ax[1, 1].hist(theta_CATE.ravel(), bins=20)
+        ax[1, 1].set_title(r"Coverage")
+        ax[1, 1].set_yticks([])  # No ticks.
+
+        plt.subplots_adjust(hspace=.5, left=.001, right=.92)
+        plt.savefig('./results/uncertainty/tree_theta_within_ci_4.pdf') #, bbox_inches='tight')
+        plt.clf()
 
 
 def dgp_ci_vs_theta():
