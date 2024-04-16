@@ -18,7 +18,7 @@ Misc
 >>> r2
 0.0034759814461150563
 """
-from data.load_data import DATA_FORMAT
+from uplift_modeling.data.load_data import DATA_FORMAT
 import numpy as np
 import csv
 import random

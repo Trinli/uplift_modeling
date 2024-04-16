@@ -5,8 +5,8 @@ import copy
 import torch
 from torch.utils.data import DataLoader
 import torch.nn as nn
-import data.load_data as load_data
-import models.uplift_neural_net
+import uplift_modeling.data.load_data as load_data
+import uplift_modeling.models.uplift_neural_net as uplift_neural_net
 import itertools
 
 if torch.cuda.is_available():
@@ -15,7 +15,7 @@ else:
     DEVICE = 'cpu'
 
 
-class SkipNeuralNet(models.uplift_neural_net.UpliftNeuralNet):
+class SkipNeuralNet(uplift_neural_net.UpliftNeuralNet):
     """
     This network provides the treatment label at some
     predefined inner layer of the network. The idea

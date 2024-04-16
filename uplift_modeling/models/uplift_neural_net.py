@@ -23,8 +23,8 @@ import warnings
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
-import data.load_data as load_data
-import metrics.uplift_metrics as uplift_metrics
+import uplift_modeling.data.load_data as load_data
+import uplift_modeling.metrics.uplift_metrics as uplift_metrics
 
 
 if torch.cuda.is_available():

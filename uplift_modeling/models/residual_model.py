@@ -21,9 +21,9 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 from sklearn.linear_model import LinearRegression
-import data.load_data as load_data
-import models.neural_net as neural_net
-import models.uplift_neural_net as uplift_neural_net
+import uplift_modeling.data.load_data as load_data
+import uplift_modeling.models.neural_net as neural_net
+import uplift_modeling.models.uplift_neural_net as uplift_neural_net
 
 if torch.cuda.is_available():
     DEVICE = 'cuda'

@@ -649,12 +649,11 @@ def bin_equally_scoring_samples(data_class, data_score):
             tmp_class_sum = float(int(item_class))
     # key is {'score': 0, 'samples': 1, 'score_sum': 2,
     # 'positives': 3, 'expected_class': 4}
-    score_distribution.append([previous_score,
+    score_distribution.append([previous_score,  # Is this an issue for NUMBA?
                                tmp_n,
                                previous_score * tmp_n,
                                tmp_class_sum,
                                tmp_class_sum / tmp_n])
-
     return score_distribution
 
 
@@ -1237,7 +1236,7 @@ def _qini_points(data_class,
                           tmp_n_samples) -\
             (control_goals + i * tmp_control_goals /
              tmp_n_samples) * n_factor
-        qini_points.append(tmp_qini_point)
+        qini_points += [tmp_qini_point]  # Quick numba fix (it has issues with appending here using .append()).
 
     # Make list into np.array:
     qini_points = np.array(qini_points)
