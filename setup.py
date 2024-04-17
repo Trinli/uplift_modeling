@@ -1,4 +1,4 @@
-from setuptools import setup
+from setuptools import setup, find_namespace_packages()
 
 def readme():
     with open('README.md') as f:
@@ -9,7 +9,7 @@ setup(name='uplift_modeling',
       description='Models, metrics, and data handling for uplift modeling.',
       url='https://github.com/trinli/uplift_modeling',
       author='Otto Nyberg',
-      packages=['uplift_modeling'],
+      packages=find_namespace_packages(), # packages=['uplift_modeling'],
       install_requires=[
           'numpy',
           'numba',
