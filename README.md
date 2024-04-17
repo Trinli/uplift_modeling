@@ -6,6 +6,8 @@ Code relating to uplift modeling
 ```pip install -e . extras``` for installation supporting gaussian processes and an honest tree implemented in R.
 
 ## Run tests for metrics
+There is a known bug with Numba that needs to be checked for. See https://github.com/numba/numba/issues/6825 for more info.
+Run tests for metrics by running
 ```python -m uplift_modeling.tests.test_uplift_metrics```
 
 
