@@ -9,6 +9,8 @@ setup(name='uplift_modeling',
       description='Models, metrics, and data handling for uplift modeling.',
       url='https://github.com/trinli/uplift_modeling',
       author='Otto Nyberg',
+      packages=['uplift_modeling', 'uplift_modeling.data', 'uplift_modeling.metrics',
+                'uplift_modeling.models', 'uplift_modeling.tests'],
       install_requires=[
           'numpy',
           'numba',
