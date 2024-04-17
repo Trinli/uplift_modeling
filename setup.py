@@ -9,15 +9,15 @@ setup(name='uplift_modeling',
       description='Models, metrics, and data handling for uplift modeling.',
       url='https://github.com/trinli/uplift_modeling',
       author='Otto Nyberg',
-      packages=['uplift_modeling', 'uplift_modeling.data', 'uplift_modeling.metrics',
-                'uplift_modeling.models', 'uplift_modeling.tests'],
+      packages=['uplift_modeling'],
       install_requires=[
           'numpy',
           'numba',
           'scipy',
           'scikit-learn',
           'torch',
-          'matplotlib'
+          'matplotlib',
+          'pytest'
       ],
        extras_require={
            'extras': [
@@ -26,7 +26,3 @@ setup(name='uplift_modeling',
                'heteroscedastic']},
       zip_safe=False,
       include_package_data=True)
-
-# Testing metrics package. There is a known bug with Numba that needs to be checked for.
-# See https://github.com/numba/numba/issues/6825 for more info.
-# Next run tests for uplift metrics using 'python -m uplift_modeling.tests.test_uplift_metrics'
