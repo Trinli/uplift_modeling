@@ -2,7 +2,7 @@
 Code relating to uplift modeling
 
 ## Install package using pip.
-```pip install .``` for regular installation.
+```pip install git+https://github.com/trinli/uplift_modeling@packaging_tmp``` for regular installation.
 ```pip install -e . extras``` for installation supporting gaussian processes and an honest tree implemented in R.
 
 ## Run tests for metrics
