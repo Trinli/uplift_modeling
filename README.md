@@ -35,7 +35,7 @@ https://doi.org/10.1016/j.neucom.2024.127741
 
 
 ## Running the experiments for "Quantifying Uncertainty of Uplift: Trees and T-learners"
-As the environment required for these experiments are rather different, everything is kept zipped at ./experiments/uncertainty_experiments.zip. Unzip and follow the instructions in the accompanying readme-file.
+As the environment required for this experiment contains a mix of old an new packages, everything is kept separately zipped at ./experiments/uncertainty_experiments.zip. Unzip and follow the instructions in the accompanying readme-file to run the experiment.
 
 
 ## Running the experiments for "Exploring Uplift Modeling with High Class Imbalance"
