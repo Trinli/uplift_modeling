@@ -27,10 +27,15 @@ The following publications are based on the code in this repository:
 * "Uplift Modeling with High Class Imbalance" by Otto Nyberg, Tomasz Kuśmierczyk, and Arto Klami. Asian Conference on Machine Learning, PMLR, 2021.
 https://proceedings.mlr.press/v157/nyberg21a
 
-* "Exploring Uplift Modeling with High Class Imbalance" by Otto Nyberg and Arto Klami. Data Mining and Knowledge Discovery (accepted for publication), 2023.
+* "Exploring Uplift Modeling with High Class Imbalance" by Otto Nyberg and Arto Klami. Data Mining and Knowledge Discovery, 2023.
 https://www.springer.com/journal/10618
 
-* "Quantifying Uncertainty of the Conditional Average Treatment Effect" by Otto Nyberg and Arto Klami. Work-in-progress.
+* "Quantifying Uncertainty of Uplift: Trees and T-learners" by Otto Nyberg and Arto Klami. Neurocomputing, 2024.
+https://doi.org/10.1016/j.neucom.2024.127741 
+
+
+## Running the experiments for "Quantifying Uncertainty of Uplift: Trees and T-learners"
+As the environment required for these experiments are rather different, everything is kept zipped at ./experiments/uncertainty_experiments.zip. Unzip and follow the instructions in the accompanying readme-file.
 
 
 ## Running the experiments for "Exploring Uplift Modeling with High Class Imbalance"
