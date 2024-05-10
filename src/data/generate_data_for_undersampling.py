@@ -7,8 +7,8 @@ We do this for "full" data, half of that, etc up to
 
 """
 
-import uplift_modeling.models.uplift_calibration as uplift_calibration
-import uplift_modeling.data.load_data as load_data
+import src.models.uplift_calibration as uplift_calibration
+import src.data.load_data as load_data
 
 def generate_data():
     """

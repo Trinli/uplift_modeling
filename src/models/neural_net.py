@@ -12,7 +12,7 @@ This classifier uses AUC-ROC as metric for best network (in contrast
 to most dsl-networks that use AUUC (/ECRR)).
 """
 import copy
-import uplift_modeling.metrics.metrics as metrics  # Script with 'expected_calibration_error'
+import src.metrics.metrics as metrics  # Script with 'expected_calibration_error'
 from sklearn.metrics import roc_auc_score
 import torch
 from torch.utils.data import DataLoader

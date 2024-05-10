@@ -5,9 +5,9 @@ Run from terminal with "python -m metrics.auuc_visualization"
 
 """
 
-import uplift_modeling.metrics.uplift_metrics as um
-import uplift_modeling.data.load_data as ld
-import uplift_modeling.models.double_classifier as dc
+import src.metrics.uplift_metrics as um
+import src.data.load_data as ld
+import src.models.double_classifier as dc
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import numpy as np

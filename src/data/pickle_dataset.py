@@ -10,7 +10,7 @@ data again).
 import gzip
 import pickle
 import random
-import uplift_modeling.data.load_data as load_data
+import src.data.load_data as load_data
 
 
 CRITEO_FORMAT = load_data.DATA_FORMAT

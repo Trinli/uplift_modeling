@@ -23,8 +23,8 @@ import itertools
 import numpy as np
 from scipy.stats import beta
 from sklearn.tree import DecisionTreeRegressor
-from uplift_modeling.metrics import uplift_metrics
-from uplift_modeling.metrics import beta_difference  # Credible intervals given alpha and beta-parameters.
+from src.metrics import uplift_metrics
+from src.metrics import beta_difference  # Credible intervals given alpha and beta-parameters.
 
 
 

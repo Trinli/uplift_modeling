@@ -4,7 +4,7 @@ Code for reading in and plotting conversion rate experiment results.
 
 
 # Perhap we can reuse the 'find optimal results' -function
-import uplift_modeling.metrics.read_dataset_size_results as dr
+import src.metrics.read_dataset_size_results as dr
 import experiments.conversion_rate_experiments as ce
 from matplotlib import pyplot as plt
 
