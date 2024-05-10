@@ -1,6 +1,15 @@
 # Uplift Modeling
 Code relating to uplift modeling
 
+## Install package using pip.
+```pip install .``` for regular installation.
+```pip install git+https://github.com/trinli/uplift_modeling@packaging_tmp``` for regular installation.
+```pip install -e . extras``` for installation supporting gaussian processes and an honest tree implemented in R.
+
+## Run tests for metrics
+```python -m uplift_modeling.tests.test_uplift_metrics```
+
+
 1. Download data to ./datasets/
 -http://ailab.criteo.com/criteo-uplift-prediction-dataset/
 -https://blog.minethatdata.com/2008/03/minethatdata-e-mail-analytics-and-data.html
@@ -57,7 +66,7 @@ This will run a double classifier (a.k.a T-learner) with logistic regression as 
 
 ## Running the experiments for "Uplift Modeling with High Class Imbalance"
 1. Store appropriate datasets to ./dataset/ in csv-format
-2. Run ```python -m data.pickle_dataset``` to prepare data appropriately. This normalizes the data and prepares training, validation, and testing sets and creates a new label by running the class-variable transformation. Be patient. The Criteo-uplift 1 dataset is large and we recommend reserving 120GB of RAM for this step. We ran this 10 times to get 10 differently randomized datasets.
+2. Run ```python -m uplift_modeling.data.pickle_dataset``` to prepare data appropriately. This normalizes the data and prepares training, validation, and testing sets and creates a new label by running the class-variable transformation. Be patient. The Criteo-uplift 1 dataset is large and we recommend reserving 120GB of RAM for this step. We ran this 10 times to get 10 differently randomized datasets.
 3. Run undersampling experiments by running undersampling_experiments.py with suitable parameters, e.g. ```python -m experiments.split_undersampling ./datasets/criteo-uplift.csv123.gz cvt 1,200,10``` (replace '123' with whatever your file is named, 'cvt' refers to class-variable transformation, '1,600,10' indicates "test k from 1 to 600 with a step of 10"). Note that the last print section shows the testing set metrics for the best model.
 4. Run isotonic regression experiments, e.g. ```python -m experiments.isotonic_regression_for_calibration ./datasets/criteo-uplift.csv123.gz dclr 3``` (replace '123' with your dataset file, 'dclr' refers to double-classifier with logistic regression, '3' refers to k=3).
 5. Results are printed to screen and stored in uplift_results.csv. Look for rows with 'Test description' set to 'testing set'.
