@@ -12,7 +12,7 @@ uplift_bar_plot()
 import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.isotonic import IsotonicRegression
-import src.data.load_data as load_data
+import uplift_modeling.data.load_data as load_data
 from sklearn.linear_model import LogisticRegression
 
 

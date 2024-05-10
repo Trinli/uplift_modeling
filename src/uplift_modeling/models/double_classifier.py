@@ -1,8 +1,8 @@
 """
 Code for double classifier approaches needed for tests.
 """
-from src.data.load_data import DatasetWrapper
-import src.models.neural_net as neural_net
+from uplift_modeling.data.load_data import DatasetWrapper
+import uplift_modeling.models.neural_net as neural_net
 from numpy import where
 import warnings
 

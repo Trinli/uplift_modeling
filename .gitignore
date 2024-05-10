@@ -17,3 +17,8 @@ DAMI3/
 results/
 *.pickle
 *.gz
+.eggs/
+uplift_modeling.egg-info/
+build/
+uncertainty/
+Notes.txt

@@ -14,8 +14,8 @@ import random
 import torch
 import torch.nn as nn
 import warnings
-import src.data.load_data as load_data
-import src.models.uplift_neural_net as uplift_neural_net
+import uplift_modeling.data.load_data as load_data
+import uplift_modeling.models.uplift_neural_net as uplift_neural_net
 
 
 LEARNING_RATE = .1

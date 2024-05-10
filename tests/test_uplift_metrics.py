@@ -16,7 +16,7 @@ import math
 import numpy as np
 # The import for uplift metrics does not seem correct here.
 # It resides in metrics.uplift_metrics
-import src.metrics.uplift_metrics as uplift_metrics
+import uplift_modeling.metrics.uplift_metrics as uplift_metrics
 
 
 def test_1(i, smoothing=.5):

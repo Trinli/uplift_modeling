@@ -525,6 +525,19 @@ def find_tree_parameters():
     plt.rcParams['font.size'] = 14
     #plt.show()
 
+
+def generic_model_comparison():
+    """
+    This function runs through a small selection of often used uplift models
+    and compares them to the new ones in terms of AUUC (the old models do not
+    produce uncertainty estimates).
+    """
+    # Models: DGP, New tree (which is just honest tree if uncertainty not estimated)
+    #  DC-LR, CVT-LR, Uplift RF
+    models = ['dc_lr', 'cvt_lr', 'uplift_rf', 'dgp', 'honest_tree']
+    pass
+
+
 def parse_file(result_file='./results/uncertainty/uncertainty_tree_results.csv'):
     """
     """

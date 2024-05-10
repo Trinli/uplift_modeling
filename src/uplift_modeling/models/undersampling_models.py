@@ -20,11 +20,11 @@ print_verbose("Importing libraries.")
 import os
 import numpy as np
 from sklearn.linear_model import LogisticRegression
-import src.data.load_data as load_data
+import uplift_modeling.data.load_data as load_data
 print_verbose("Importing neural net library")
-import src.models.uplift_neural_net as uplift_neural_net
+import uplift_modeling.models.uplift_neural_net as uplift_neural_net
 print_verbose("Importing undersampling experiment_aux")
-import src.models.uplift_calibration as uplift_calibration
+import uplift_modeling.models.uplift_calibration as uplift_calibration
 print_verbose("Trying to import R")
 try:
     import rpy2.robjects as robjects

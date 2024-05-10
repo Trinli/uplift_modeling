@@ -2,8 +2,8 @@
 Script for testing neural net code.
 """
 
-import src.data.load_data as load_data
-import src.models.neural_net as neural_net
+import uplift_modeling.data.load_data as load_data
+import uplift_modeling.models.neural_net as neural_net
 
 
 def test():
