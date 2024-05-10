@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "uplift_modeling"
+authors = [{name = "Otto Nyberg"}]
+readme = "README.md"
+version = "0.1.0"
+description = "Models, metrics, and data handling for uplift modeling."
+dependencies = [
+    'numpy',
+    'numba',
+    'scipy',
+    'scikit-learn',
+    'torch',
+    'matplotlib',
+    'pytest',
+    # 'gpflow',  # This should not be included even though it is required by the Gaussian Process-experiemnts.
+    # 'heteroscedastic',  # This should not be included even though it is required by the Gaussian Process-experiemnts.
+    'rpy2'
+]
+
+# Automatic search for submodules:
+[tool.setuptools.packages.find]
+where = ["src"]
