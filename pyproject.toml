@@ -16,10 +16,11 @@ dependencies = [
     'torch',
     'matplotlib',
     'pytest',
-    # 'gpflow',  # This should not be included even though it is required by the Gaussian Process-experiemnts.
-    # 'heteroscedastic',  # This should not be included even though it is required by the Gaussian Process-experiemnts.
     'rpy2'
 ]
+
+[project.optional-dependencies]
+uncertainty = ['gpflow', 'heteroscedastic']  # The version requirements for these are fishy.
 
 # Automatic search for submodules:
 [tool.setuptools.packages.find]
