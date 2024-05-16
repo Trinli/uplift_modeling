@@ -3,18 +3,25 @@ Class for handling datasets for uplift experiments and
 one class to wrap this class in torch-compatible format.
 
 Development ideas:
-Support for ordinal variables could perhaps be added.
-Support for multi-class or continuous dependent variables
-could perhaps be added following the same logic used with 
-treatment labels.
-Perhaps expand the documentation for the data format.
-Data loading could be made more efficient by discarding observations not belonging
+-Support for ordinal variables could perhaps be added.
+-Support for continuous dependent variables could perhaps 
+be added following the same logic used with treatment labels.
+-Perhaps expand the documentation for the data format.
+-Data loading could be made more efficient by discarding observations not belonging
 to either treatment group up front and by handling data one observation at a time
 rather than reading in all data and handling one feature at a time.
-Maybe change "11" or "1:1" to "one_to_one".
-Change getter signature from data['training_set', None, 'treatment'] to maybe 
+Features cannot be normalized before everything is in memory, but at least
+we could reduce the needed memory from 2ND to ND + D or even go as low as ND + 1.
+This matters with large datasets. Alternatively use some serialized format
+for quick access after preprocessing the dataset once.
+-Maybe change "11" or "1:1" to "one_to_one".
+-Change getter signature from data['training_set', None, 'treatment'] to maybe 
 data['training_set'], data['training_set', 'treatment'], and 
 data['training_set', 'treatment', 'one_to_one']?
+-Move DATA_FORMAT and easy access to separate file? Maybe keep it here.
+-Implement quick-access functions for the most common datasets.
+-Add support to download datasets if not present locally.
+-Check whether the LENTA_FORMAT is correct. It probably is not.
 """
 
 import csv
@@ -40,7 +47,7 @@ CRITEO_FORMAT = {'file_name': 'criteo-uplift.csv',
                'data_type': 'float32'}  # Data will be set to this type.
 
 # This format is for the Hillstrom Mine that data -challenge dataset
-HILLSTROM_FORMAT_1 = {'file_name':
+HILLSTROM_FORMAT = {'file_name':
                       'Kevin_Hillstrom_MineThatData_E-MailAnalytics_DataMiningChallenge_2008.03.20.csv',
                       # Note that many of the features are categorical
                       'X_idx': [i for i in range(8)],
@@ -200,7 +207,7 @@ class DatasetCollection(object):
 
     .. code-block::
 
-        VOTER_FORMAT = {'file_name': 'GerberGreenLarimer_APSR_2008_social_pressure.csv',
+        data_format = {'file_name': 'GerberGreenLarimer_APSR_2008_social_pressure.csv',
         'X_idx': [i for i in range(8)] + [12],  # Indices for columns with features
         'continuous_idx': [1, 12],  # Indices for continuous features
         'categorical_idx': [0, 2, 3, 4, 5, 6, 7],  # Indices for categorical features
@@ -398,6 +405,12 @@ class DatasetCollection(object):
         training2, validation_set_2a, validation_set_2b, and testing set are
         split 6/16:3/16:3/16:4/16. Note that in both cases, the testing sets are
         identical in all aspects.
+
+        Parameters
+        ----------
+        mode : str
+            Mode defines which datasets are added. 'basic' adds training, testing,
+            and validation sets.
         """
         # Using a 50/25/25 split
         n_samples = self.X.shape[0]
@@ -411,13 +424,15 @@ class DatasetCollection(object):
             # Useful for class-variable transformation.
             tmp = self._subsample_one_to_one('training_set')
             self.datasets.update({'training_set_11': tmp})
-            if 'training_set_2' in self.datasets.keys():
-                # Add this only if the second training set split is in use:
-                tmp = self._subsample_one_to_one('training_set_2')
-                self.datasets.update({'undersampled_training_set_2_11': tmp})
+            # if 'training_set_2' in self.datasets.keys():
+            #     # I see no use for this.
+            #     # Add this only if the second training set split is in use:
+            #     tmp = self._subsample_one_to_one('training_set_2')
+            #     self.datasets.update({'training_set_2_11': tmp})
         elif mode == 'two_validation_sets':
             # Add also slightly different split that enables early stopping of
-            # neural networks using separate validation set:
+            # neural networks using separate validation set.
+            # Idx n_samples * 12 // 16 to n_samples * 16 // 16 is the testing set.
             self.add_set('training_set_2', 0, n_samples * 6 // 16)
             self.add_set('validation_set_2a', n_samples * 6 // 16, n_samples * 9 // 16)
             self.add_set('validation_set_2b', n_samples * 9 // 16, n_samples * 12 // 16)
@@ -861,9 +876,22 @@ class DatasetCollection(object):
         Shorthand method to access self.datasets' contents. This function will
         return either a numpy-array or a pytorch dataloader depending on parameters.
 
-        Args:
-        args[0] = name (str): name of key in data.datasets to access, e.g.
-         'training_set'.
+        Parameters
+        ----------
+        args[0] : str
+            name of key in self.datasets to access, e.g. 'training_set',
+            'validation_set', or 'testing_set'. Any name of a subset
+            added to self.dataset-dict is valid.
+        args[1] : str
+            Optional. 'all', 'treatment', or 'control' to get subset with
+            all, treated, or untreated ("control") observations. Leaving
+            it empty will behave same as 'all'.
+        args[2] : str
+            Optional. If set to 'one_to_one', the getter will return data
+            subsetted so that the ratio between treated and untreated
+            observations is 1:1.
+
+
         args[1] = undersampling {None, '11', '1111'}: None causes no undersampling
          at all, '11' results in treatment and control groups being equally large,
          '1111' results in '11' and #positive and #negative in both groups to be
@@ -871,20 +899,47 @@ class DatasetCollection(object):
         args[2] = group {'all', 'treatment', 'control'}: 'all' and None both
          return all data. 'treatment' returns samples that were treated etc.
 
-        Notes:
-        *No solution for fetching data with CVT by Athey & Imbens (2015)
+        Returns
+        -------
+        dict
+            Dict with appropriate data with the customary keys.
+
+        Notes
+        -Fix overall structure.
+        -Must check for 
+        -If 'one_to_one' dataset does not exist in self.datasets.keys(), create
+         the dataset.
         """
         # Handle input arguments:
         group = 'all'  # Subset for treatment or control?
-        if isinstance(args[0], str):  # Only name of dataset passed.
-            name = args[0]
+        if isinstance(args[0], str):  # Only name of subset passed.
+            target_set = args[0]
         elif isinstance(args[0], tuple):  # Multiple arguments were passed
-            name = args[0][0]
-            if len(args[0]) > 1:
-                undersampling = args[0][1]
-                if (undersampling is not None) and name == 'training_set':
-                    name = 'undersampled_' + name + '_' + str(undersampling)
-                elif undersampling is not None:
+            target_set = args[0][0]
+        # Checking for existence of subset:
+        if target_set not in self.datasets.keys():
+            # Target_set does not exist yet.
+            if target_set in ['training_set_2', 'validation_set_2a',
+                                'validation_set_2b']:
+                txt = "Creating three new subsets, 'training_set_2', 'validation_set_2a' \n"
+                + "and 'validation_set_2b'. These are suitable for early stopping. \n"
+                + "6/16 is for the training set, 3/16 for the first validation set, \n"
+                + "and 3/16 for the second validation set \n"
+                + "The testing set (4/16 of the data) remains unchanged."
+                print(txt)
+                self._create_subsets(mode='two_validation_sets')
+        if len(args[0]) > 1:  # There are still arguments left
+            one_to_one = args[0][1]
+            if one_to_one == 'one_to_one':
+                # A subset is requested where the ratio between treated and untreated
+                # observations is 1:1.
+                # Check existence:
+                target_set = target_set + '11'
+                if target_set not in self.dataset.keys():
+                    # If it does not exist, create it.
+                    self._create_subsets(mode='one_to_one')
+
+                elif target_set is not None:
                     print("Currently no undersampled datasets for other " +
                           "than training set.")
                 if len(args[0]) > 2:
@@ -896,14 +951,14 @@ class DatasetCollection(object):
 
         # Store approproate data in tmp:
         if group == 'treatment':
-            idx = self.datasets[name]['t']
-            tmp = self.subset_by_group(name, idx, False)
+            idx = self.datasets[target_set]['t']
+            tmp = self.subset_by_group(target_set, idx, False)
         elif group == 'control':
             # Negation of 't':
-            idx = ~self.datasets[name]['t']
-            tmp = self.subset_by_group(name, idx, False)
+            idx = ~self.datasets[target_set]['t']
+            tmp = self.subset_by_group(target_set, idx, False)
         elif group == 'all':
-            tmp = self.datasets[name]
+            tmp = self.datasets[target_set]
         else:
             raise Exception("Group '{}' not recognized".format(group))
         return tmp
@@ -1012,8 +1067,8 @@ def get_criteo_test_data():
     return data
 
 def get_hillstrom_data():
-    data = DatasetCollection("./datasets/" + HILLSTROM_FORMAT_1['file_name'],
-                             HILLSTROM_FORMAT_1)
+    data = DatasetCollection("./datasets/" + HILLSTROM_FORMAT['file_name'],
+                             HILLSTROM_FORMAT)
     return data
 
 def get_voter_data():
