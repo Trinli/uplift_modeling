@@ -8,6 +8,13 @@ Support for multi-class or continuous dependent variables
 could perhaps be added following the same logic used with 
 treatment labels.
 Perhaps expand the documentation for the data format.
+Data loading could be made more efficient by discarding observations not belonging
+to either treatment group up front and by handling data one observation at a time
+rather than reading in all data and handling one feature at a time.
+Maybe change "11" or "1:1" to "one_to_one".
+Change getter signature from data['training_set', None, 'treatment'] to maybe 
+data['training_set'], data['training_set', 'treatment'], and 
+data['training_set', 'treatment', 'one_to_one']?
 """
 
 import csv
@@ -234,9 +241,13 @@ class DatasetCollection(object):
     -------
     CVT-balancing, undersampling.
 
-    Notes:
+    Notes and change plans:
+    _______________________
     Pytorch dataloaders could also be stored in this object in a dict
     in a similar way subsets are stored now.
+    Create certain subsets only when requested.
+    Add automated dataloading from online resources if datasets not found ("Download dataet?[y/n]").
+    Add "quick access" for handful of datasets.
     """
     def __init__(self, file_name, data_format):
         self.file_name = file_name
@@ -258,9 +269,9 @@ class DatasetCollection(object):
 
     def _load_data(self):
         """
-        Method for loading data from file. Currently supports csv-files.
-
-        Maybe store the data into features (X), y, and t at this point already?
+        Method for loading data from file and parsing it following the
+        data_format provided in the initializer.
+        Currently supports csv-files.
         """
         tmp_data = []
         if self.file_name.endswith('csv'):
@@ -272,12 +283,8 @@ class DatasetCollection(object):
             except FileNotFoundError:
                 raise Exception("The file {} was not found in the working directory.".format(self.file_name))
             if self.data_format['headers']:
-                # This becomes misleading as we reformat the data:
-                # self.col_names = tmp_data[1]
                 # Drop title row:
                 tmp_data = tmp_data[1:]
-            # Perhaps make class and treatment labels binary?
-            # Everything is one array which prevents this.
         else:
             raise Exception("The file needs to be a .csv-file.")
 
@@ -285,50 +292,57 @@ class DatasetCollection(object):
         # self.data_format:
         tmp_X = None
         for col, _ in enumerate(tmp_data[0]):
-            # Parse into suitable format
-            # Either it is continuous or categorical.
-            # Some columns are also treatment-group labels etc ?!?
-            # if column is feature:
+            # Parse one column at a time into a suitable format.
+            # Columns contain features, treatment labels, and outcome labels.
+            # If column is feature:
             if col in self.data_format['X_idx']:
                 if col in self.data_format['continuous_idx']:
+                    # Column contains a continuous feature
                     tmp = np.array([[row[col]] for row in tmp_data])
                     tmp = tmp.astype(self.data_format['data_type'])
                     tmp = self._normalize_data(tmp)
                 elif col in self.data_format['categorical_idx']:
+                    # Column contains a categorical feature
                     tmp_col = [row[col] for row in tmp_data]
                     keys = np.unique(tmp_col)
                     tmp = np.zeros([len(tmp_col), len(keys)], dtype=
                                    self.data_format['data_type'])
+                    # One-hot encoding for categorical features:
                     for i, key in enumerate(keys):
                         for j, _ in enumerate(tmp_col):
                             if tmp_col[j] == key:
                                 tmp[j, i] = 1
-                # Add new features to tmp_array
+                # Add new features to tmp_X
                 if tmp_X is None:
                     tmp_X = tmp
                 else:
                     tmp_X = np.concatenate([tmp_X, tmp], axis = 1)
             elif col == self.data_format['t_idx']:
-                # Binary group label
-                # True indicates treatment group
+                # Column contains the treatment label.
+                # Seems that the format only checks whether
+                # Create binary group label for _every_ observation
+                # where True indicates treatment group.
+                # Observations not beloning to either treatment group
+                # are filtered out later.
                 tmp = [row[col] for row in tmp_data]
                 tmp_t = np.array([item == self.data_format['t_labels'][0] for
                                   item in tmp])
             elif col == self.data_format['y_idx']:
                 if 'y_labels' in self.data_format.keys():
-                    # I.e. if labels are given for the class:
+                    # If labels are given for the class, the first label in
+                    # data_format['y_labels'] is considered the positive label:
                     tmp = [row[col] for row in tmp_data]
                     tmp_y = np.array([item == self.data_format['y_labels'][0] for
                                       item in tmp])
                 else:
-                    # No 'y_idx' is specified, reading in as boolean.
+                    # No 'y_label' is specified, reading in as boolean.
                     tmp_y = np.array([row[col] for row in tmp_data])
                     tmp_y = tmp_y.astype(np.bool_)
-                    # tmp_y = tmp_y.astype(self.data_format['data_type'])
         # Class-variable transformation:
         tmp_z = tmp_y == tmp_t
 
-        # Keep only samples that belong to specified treatment groups:
+        # Keep only observations that belong to treatment groups
+        # specified in data_format['t_labels']:
         tmp = [row[self.data_format['t_idx']] for row in tmp_data]
         group_idx = [item in self.data_format['t_labels'] for item in
                      tmp]
@@ -357,12 +371,12 @@ class DatasetCollection(object):
         conversion_rate_control = sum(self.y[~self.t])/sum(~self.t)
         effect_size = (conversion_rate_treatment - conversion_rate_control) /\
                       conversion_rate_control
-        print("Estimated effect size for treatment: {:.2f}%".format(effect_size * 100))
+        print("Estimated effect size for treatment: {:.2f}% (percentage points)".format(effect_size * 100))
 
 
     def _shuffle_data(self):
         if self.data_format['random_seed'] is not None:
-            print("Random seed set to {}.".format(self.data_format['random_seed']))
+            print("Random seed set to {} and data shuffled.".format(self.data_format['random_seed']))
             # Set random seed to get same split for all experiments
             np.random.seed(self.data_format['random_seed'])
         shuffling_idx = np.random.choice([item for item in range(len(self.y))],
@@ -372,15 +386,14 @@ class DatasetCollection(object):
         self.t = self.t[shuffling_idx]
         self.z = self.z[shuffling_idx]
         # self.r does not exist at this point yet.
-        #  self.r = self.r[shuffling_idx]
-        # Reset seed:
-        np.random.seed(None)  # Uses time
+        # self.r = self.r[shuffling_idx]
 
-    def _create_subsets(self):
+    def _create_subsets(self, mode='basic'):
         """
-        Method for creating training, validation, and testing sets plus
-        an additional training_set_2, validation_set_2a, and validation_set_2b
-        to be used for deciding on early stopping when training neural networks.
+        Method for creating basic training, validation, and testing sets.
+        Method further creates an additional training_set_2, validation_set_2a, 
+        and validation_set_2b to be used for deciding on early stopping when 
+        training neural networks.
         Training, validation, and testing sets are split 50:25:25, and
         training2, validation_set_2a, validation_set_2b, and testing set are
         split 6/16:3/16:3/16:4/16. Note that in both cases, the testing sets are
@@ -388,20 +401,28 @@ class DatasetCollection(object):
         """
         # Using a 50/25/25 split
         n_samples = self.X.shape[0]
-        # Add usable datasets such as training set to self.datasets:
-        self.__add_set('training_set', 0, n_samples // 2)
-        self.__add_set('validation_set', n_samples // 2, n_samples * 3 // 4)
-        self.__add_set('testing_set', n_samples * 3 // 4, n_samples)
-        # Add also slightly different split that enables early stopping of
-        # neural networks using separate validation set:
-        self.__add_set('training_set_2', 0, n_samples * 6 // 16)
-        self.__add_set('validation_set_2a', n_samples * 6 // 16, n_samples * 9 // 16)
-        self.__add_set('validation_set_2b', n_samples * 9 // 16, n_samples * 12 // 16)
-        # Subsampled training set with 1:1 ratio or treated and untreated observations.
-        tmp = self._subsample('training_set')
-        self.datasets.update({'undersampled_training_set_11': tmp})
-        tmp = self._subsample('training_set_2')
-        self.datasets.update({'undersampled_training_set_2_11': tmp})
+        if mode == 'basic':
+            # Add basic training, validation, and testing sets to self.datasets:
+            self.__add_set('training_set', 0, n_samples // 2)
+            self.__add_set('validation_set', n_samples // 2, n_samples * 3 // 4)
+            self.__add_set('testing_set', n_samples * 3 // 4, n_samples)
+        elif mode == 'one_to_one':
+            # Subsampled training set with 1:1 ratio of treated and untreated observations.
+            # Useful for class-variable transformation.
+            tmp = self._subsample_one_to_one('training_set')
+            self.datasets.update({'training_set_11': tmp})
+            if 'training_set_2' in self.datasets.keys():
+                # Add this only if the second training set split is in use:
+                tmp = self._subsample_one_to_one('training_set_2')
+                self.datasets.update({'undersampled_training_set_2_11': tmp})
+        elif mode == 'two_validation_sets':
+            # Add also slightly different split that enables early stopping of
+            # neural networks using separate validation set:
+            self.__add_set('training_set_2', 0, n_samples * 6 // 16)
+            self.__add_set('validation_set_2a', n_samples * 6 // 16, n_samples * 9 // 16)
+            self.__add_set('validation_set_2b', n_samples * 9 // 16, n_samples * 12 // 16)
+        else:
+            print("Mode '{}' not recognised.".format(mode))
 
     def _revert_label(self, y_vec, t_vec):
         """
@@ -450,22 +471,22 @@ class DatasetCollection(object):
 
     def add_set(self, name, start_idx, stop_idx):
         """
-        Public method of above.
+        Public method of __add_set()
         """
         self.__add_set(name, start_idx, stop_idx)
 
     def _normalize_data(self, vector):
         """
-        Method for normalizing data.
+        Method for normalizing data. Used by _load_data().
 
         Parameters:
         -----------
-        version : str
-         None to keep data as is, 'v1' for normalization of vector over all users of one feature
-         to unit variance (not recommended), 'v2' for unit variance, 'v3' for centralization and
-         unit variance. 'v3' or None is recommended.
+        'normalization' : str 
+            'normalization' needs to be passed in data_format at initialization.
+            None to keep data as is, 'v1' for normalization of vector over all users of one feature
+            to unit variance (not recommended), 'v2' for unit variance, 'v3' for centralization and
+            unit variance. 'v3' or None is recommended.
         """
-        # This normalizes features as stated in Diemert & al.
         if self.data_format['normalization'] is None:
             pass
         elif self.data_format['normalization'] == 'v1':
@@ -476,26 +497,25 @@ class DatasetCollection(object):
             # Set variance to 1
             tmp = vector / np.std(vector)
         elif self.data_format['normalization'] == 'v3':
+            # This normalizes features as stated in Diemert & al.
             # Set mean to 0 and variance to 1:
             tmp = vector - np.mean(vector)
             tmp = tmp / np.std(tmp)
         return tmp
 
-    def _subsample():
+    def _subsample_one_to_one(target_set):
         """
-        Method to subsample the training set so that the ratio between
-        treated and untreated observations is 1:1. Method adds
-        subset to datasets-dictionary in self.
+        Method to further subsample some subset (training/validation/testing 
+        set) so that the ratio between treated and untreated observations is 
+        1:1. Method returns the subsampled data and leaves self as is.
 
         Parameters:
         -----------
-        name : str
-            Name of set to be added to self.datasets-dictionary.
+        target_set : str
+            Name of set to be subsampled. Must exist in self.datasets.keys().
         """
-        name = 'one-to-one' 
-        tmp = self.datasets[name]
+        tmp = self.datasets[target_set]
         tot_samples = len(tmp['t'])
-        # 1:1, treatment:control ratio
         # Smaller of these is the number of samples we want
         n_samples = int(np.min([sum(tmp['t']), sum(~tmp['t'])]))
         treatment_idx = np.array([i for i, t in zip(range(tot_samples), tmp['t'])
@@ -527,25 +547,26 @@ class DatasetCollection(object):
         is changed by a factor of k by either reducing the number of
         negative samples or increasing the number of positive samples.
         The method also changes the sampling rate of treatment vs. control
-        samples to 1:1.
-        This is suitable for class-variable transformation.
+        samples to 1:1. This is suitable for class-variable transformation.
+        This is the original implementation of k-undersampling by
+        Nyberg & Klami 2021.
 
-        Args:
-        k (int): If None, a balanced k is deduced from the data. Otherwise
-         this number will determine the change in positive rate in the data.
-         group_sampling (str): 'natural' implies no change in group sampling
-         rate, i.e. the number of samples in the treatment and control groups
-         stay constant. 
-         '11' indicates that there should be equally many treatment and
-         control samples. This is useful with CVT and enforces 
-         p(t=0) = p(t=1)).
+        Parameters:
+        -----------
+        k : int 
+            This number will determine the change in positive rate in the data.
+        group_sampling : str 
+            'natural' implies no change in group sampling rate, i.e. the number
+            of samples in the treatment and control groups stay constant. 
+            '11' indicates that there should be equally many treatment and
+            control observations. This is useful with CVT and enforces
+            p(t=0) = p(t=1)).
 
         Notes:
+        ______
         If k is very large the number of negative samples might drop to zero,
         or conversely if k is very small the number of positive samples might
-        drop to zero. There is not a check for this implemented. The implementation
-        ensures at least one negative sample is retained.
-        -No, it does not. Negative samples can drop to zero.
+        drop to zero. There is not a check for this.
         """
         # Number of positives in treatment group:
         t_data = self['training_set', None, 'treatment']
@@ -625,33 +646,48 @@ class DatasetCollection(object):
         tmp_y = self['training_set']['y'][idx]
         tmp_t = self['training_set']['t'][idx]
         tmp_z = self['training_set']['z'][idx]
-        # We will also need 'r' here now (MSE-gradient)!
+        # We might also need 'r' here (for estimation of E(MSE)-gradient)
         tmp_r = self._revert_label(tmp_y, tmp_t)
 
         return {'X': tmp_X, 'y': tmp_y, 'z': tmp_z, 't': tmp_t, 'r': tmp_r}
 
+
     def undersampling(self, k_t, k_c=None, group_sampling=None,
                       seed=None, target_set='training_set'):
         """
-        Method to undersample the training set. Method returns a dictionary
-        containing labels 'y', features 'X', treatment group 't',
-        the class-variable transformation 'z', and the revert-label
-        transformation 'r'. The undersampling is performed so that
-        p(y=1) in the original data equals p(y=1) / k_t (or k_c) in
-        the undersampled data for treated and control samples separately.
+        Method to undersample the training set. The undersampling 
+        is performed so that p(y=1) in the original data equals 
+        p(y=1) / k_t (or k_c) in the undersampled data for treated 
+        and control samples separately. If k_c is not provided,
+        and group_sampling is set to '11', the behavior is
+        identical to k_undersampling save for randomization.
+        This is the original implementation for split undersampling
+        from Nyberg & Klami 2023.
 
-        Args:
-        k_t (float): Value of k for undersampling of treated samples.
-         Value in [0, inf]. For values below 1, positive samples are
-         dropped.
-        k_c (float): Gets value k_t unless k_c is specified. I that case
-         it works like k_undersampling.
-        group_sampling (str): If set to '11' there will be equally many
-         treatment and control samples.
-        seed (int): Random seed for numpy. If set to None, random seed is
-         not set.
-        target_set (str): Which set to sample the undersampled dataset from. Needs
-         to exist as key in DatasetCollection.
+        Parameters
+        -----------
+        k_t : float 
+            Value of k for undersampling of treated samples.
+            Value in [0, inf]. For values below 1, positive samples are
+            dropped.
+        k_c : float 
+            Gets value k_t unless k_c is specified. I that case
+            it works like k_undersampling.
+        group_sampling : str 
+            If set to '11' there will be equally many
+            treatment and control samples.
+        seed : int 
+            Random seed for numpy. If set to None, random seed is
+            not set.
+        target_set : str 
+            Which set to sample the undersampled dataset from. Needs
+            to exist as key in DatasetCollection.
+
+        Returns
+        -------
+        dict
+            Data undersampled with desired properties is returned in a
+            dict with keys 'X', 'y', 't', 'z', and 'r'.
         """
         if k_c is None:
             # Use same k for both treated and control samples.
@@ -759,26 +795,26 @@ class DatasetCollection(object):
 
     def naive_undersampling(self, k):
         """
-        Naive version of undersampling where negative (majority class) samples
-        are dropped from both treated and control samples with equal probability.
+        Naive version of undersampling where negative (majority class) observations
+        are dropped from both treated and control observations with equal probability.
         Using 'k' here instead of e.g. 'p' as undersampling factor to keep
-        similarity to other undersampling methods.
-        
-        Args:
-        k (float): Undersampling factor. In ]0, inf], although upper boundary comes
-        from number of samples that can be dropped before dropping _all_ majority
-        class samples. k > 1 will lead to negative samples being dropped and k < 1
-        to positive ones being dropped so that p(y=1) = k * \tilde{p}(y=1).
+        similarity to other undersampling methods. This is the original 
+        implementation from Nyberg & Klami (2021).
+
+        Parameters
+        ----------
+        k : float 
+            Undersampling factor. In ]0, inf], although upper boundary comes
+            from number of observations that can be dropped before dropping _all_ majority
+            class observations. k > 1 will lead to negative observations being dropped and k < 1
+            to positive ones being dropped so that p(y=1) = k * \tilde{p}(y=1).
         """
-        # 1. Just calculate what k_t and k_c this naive k corresponds to
-        # and call undersampling() with appropriate parameters.
         n_samples = len(self['training_set', None, 'all']['y'])
         n_positives = sum(self['training_set', None, 'all']['y'])
         n_negatives = n_samples - n_positives
         conversion_rate = n_positives / n_samples
         assert k > 0, "k needs to be larger than 0."
         assert k * conversion_rate <= 1, "Given k too large for data."
-        # new_conversion_rate = k * conversion_rate
         if k >= 1:
             # k > 1 implies negative samples are dropped.
             # Number of negative samples to be dropped:
@@ -796,7 +832,6 @@ class DatasetCollection(object):
             tmp_samples_to_drop = (tmp_n - tmp_pos_n) * drop_rate
             k_c = (tmp_pos_n / (tmp_n - tmp_samples_to_drop)) / (tmp_pos_n / tmp_n)
         elif 0 < k < 1:
-            #n_pos_drop = n_samples / k - n_negatives # Doesn't apply for k < 1.
             n_pos_drop = n_positives - k * n_positives * n_negatives /\
                 (n_samples - k * n_positives)
             drop_rate = n_pos_drop / n_positives
@@ -809,7 +844,6 @@ class DatasetCollection(object):
             # Treated samples:
             tmp_pos_n = sum(self['training_set', None, 'treatment']['y'])
             tmp_n = len(self['training_set', None, 'treatment']['y'])
-            # tmp_neg_n = tmp_n - tmp_pos_n
             tmp_samples_to_drop = tmp_pos_n * drop_rate
             k_t = (tmp_pos_n - tmp_samples_to_drop) /\
                 (tmp_n - tmp_samples_to_drop) /\
@@ -817,17 +851,15 @@ class DatasetCollection(object):
             # Control samples:
             tmp_pos_n = sum(self['training_set', None, 'control']['y'])
             tmp_n = len(self['training_set', None, 'control']['y'])
-            # tmp_neg_n = tmp_n - tmp_pos_n
             tmp_samples_to_drop = tmp_pos_n * drop_rate
             k_c = (tmp_pos_n - tmp_samples_to_drop) /\
                 (tmp_n - tmp_samples_to_drop) /\
                     (tmp_pos_n / tmp_n)
-            # k_c = (tmp_pos_n - tmp_samples_to_drop) /\
-            #    (tmp_pos_n - tmp_samples_to_drop + tmp_neg_n)
         else:
             # Should never end up here.
             raise ValueError("k not valid.")
         return self.undersampling(k_t=k_t, k_c=k_c)
+
 
     def __getitem__(self, *args):
         """
@@ -870,79 +902,78 @@ class DatasetCollection(object):
         # Store approproate data in tmp:
         if group == 'treatment':
             idx = self.datasets[name]['t']
-            tmp = self.__subset_by_group(name, idx, False)
+            tmp = self.subset_by_group(name, idx, False)
         elif group == 'control':
             # Negation of 't':
             idx = ~self.datasets[name]['t']
-            tmp = self.__subset_by_group(name, idx, False)
+            tmp = self.subset_by_group(name, idx, False)
         elif group == 'all':
             tmp = self.datasets[name]
         else:
             raise Exception("Group '{}' not recognized".format(group))
         return tmp
 
-    def __subset_by_group(self, name, idx, recalculate_r=True):
+
+    def subset_by_group(self, target_set, idx, recalculate_r=True):
         """
-        Method for creating subset of self.datasets[name] where items
+        Method for creating subset of self.datasets[target_set] where items
         in idx are included.
 
-        name (str): Name of subset to be subsetted (e.g. 'testing_set')
-        idx (np.array([bool])): Boolean array for items to be included.
-        recalculate_r (bool): If true, the revert-label is re-estimated
-         in the subset. Otherwise the previously estimated values are used.
+        Parameters
+        ----------
+        target_set : str 
+            Name of subset to be subsetted (e.g. 'testing_set')
+        idx : np.array([bool]) 
+            Boolean array for items to be included.
+        recalculate_r : bool 
+            If true, the revert-label is re-estimated in the subset. 
+            Otherwise the previously estimated values are used.
 
-        Notes:
-        -This method creates new arrays.
-        -Storing these would double the need for memory.
+        Returns
+        -------
+        dict
+            A dict with appropriate keys and data.
         """
-        X = self.datasets[name]['X'][idx, :]
-        y = self.datasets[name]['y'][idx]
-        t = self.datasets[name]['t'][idx]
-        z = self.datasets[name]['z'][idx]
+        X = self.datasets[target_set]['X'][idx, :]
+        y = self.datasets[target_set]['y'][idx]
+        t = self.datasets[target_set]['t'][idx]
+        z = self.datasets[target_set]['z'][idx]
         if recalculate_r:
             r = self._revert_label(y, t)
         else:
-            r = self.datasets[name]['r'][idx]
+            r = self.datasets[target_set]['r'][idx]
         return {'X': X, 'y': y, 't': t, 'z': z, 'r': r}
     
-    def subset_by_group(self, name, idx):
-        """
-        Public version of above method.
-        """
-        return self.__subset_by_group(name, idx)
     
-    def subsample(self, rate):
+    def reduce_size(self, rate):
         """
-        Method to subsample training and validation set. This 
+        Method to reduce the size of the training and validation
+        sets while otherwise maintaining their properties. This
+        is accomplished simply by random subsampling. This 
         OVERWRITES the training and validation sets in the object!
         Can be used to e.g. test performance of models with different
-        training set size.
-        'z' (class-variable transformation) stays as is. 'r' is re-estimated
-        with current data.
-        Normalization stays as is.
-        
-        Args:
-        rate (float): In [0, 1]. The rate at which observations should
-         be kept. Observations are randomly sampled without replacement.
+        training set size and is compatible with the DatsetWrapper-
+        class.
 
-        Notes:
-        Does not touch 'training_set_2' nor related validation sets.
-        -Are we using these? These sets were added for neural net cross-
-         validation.
+        Parameters
+        ----------
+        rate : float 
+            In [0, 1]. The rate at which observations should be
+            kept. Observations are randomly sampled without replacement.
         """
         # First training set:
         n_train = len(self['training_set']['y'])
         n_train_to_keep = int(n_train * rate)
         # Create index for random sampling:
         idx = np.random.choice(range(n_train), n_train_to_keep, replace=False)
-        self.datasets['training_set'] = self.__subset_by_group('training_set', idx)
+        self.datasets['training_set'] = self.subset_by_group('training_set', idx)
         
         # Then validation set
         n_val = len(self['validation_set']['y'])
         n_val_to_keep = int(n_val * rate)
         # Create index for random sampling:
         idx = np.random.choice(range(n_val), n_val_to_keep, replace=False)
-        self.datasets['validation_set'] = self.__subset_by_group('validation_set', idx)
+        self.datasets['validation_set'] = self.subset_by_group('validation_set', idx)
 
 
 class DatasetWrapper(Dataset):
