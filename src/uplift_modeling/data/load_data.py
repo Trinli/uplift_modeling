@@ -346,7 +346,8 @@ class DatasetCollection(object):
                     tmp_y = np.array([row[col] for row in tmp_data])
                     tmp_y = tmp_y.astype(np.bool_)
         # Class-variable transformation:
-        tmp_z = tmp_y == tmp_t
+        tmp_z = tmp_y == tmp_t  # CVT
+        tmp_r = self._revert_label(tmp_y, tmp_t)  # OTM transformation
 
         # Keep only observations that belong to treatment groups
         # specified in data_format['t_labels']:
@@ -358,6 +359,8 @@ class DatasetCollection(object):
         self.y = tmp_y[group_idx]
         self.t = tmp_t[group_idx]
         self.z = tmp_z[group_idx]
+        self.r = tmp_r[group_idx]
+
 
         # Print some statistics for the loaded data:
         print("Dataset {} loaded".format(self.file_name))
@@ -393,7 +396,7 @@ class DatasetCollection(object):
         self.t = self.t[shuffling_idx]
         self.z = self.z[shuffling_idx]
         # self.r does not exist at this point yet.
-        # self.r = self.r[shuffling_idx]
+        self.r = self.r[shuffling_idx]
 
     def _create_subsets(self, mode='basic'):
         """
@@ -513,7 +516,7 @@ class DatasetCollection(object):
             tmp = tmp / np.std(tmp)
         return tmp
 
-    def _subsample_one_to_one(target_set):
+    def _subsample_one_to_one(self, target_set):
         """
         Method to further subsample some subset (training/validation/testing 
         set) so that the ratio between treated and untreated observations is 
@@ -544,11 +547,12 @@ class DatasetCollection(object):
         y = tmp['y'][idx]
         t = tmp['t'][idx]
         z = tmp['z'][idx]
-        # Revert-label does not make sense together with undersampling.
+        r = self._revert_label(y, t)
+        # Revert-label does not make much sense together with undersampling.
         # (techically it is possible to calculate, but the normalization is
         # precisely there to make undersampling unnecessary.)
         # At minimum, it would need to be recalculated for a subset.
-        return {'X': X, 'y': y, 't': t, 'z': z}
+        return {'X': X, 'y': y, 't': t, 'z': z, 'r': r}
 
 
     def k_undersampling(self, k, group_sampling='11'):
@@ -912,11 +916,32 @@ class DatasetCollection(object):
         """
         # Handle input arguments:
         group = 'all'  # Subset for treatment or control?
-        if isinstance(args[0], str):  # Only name of subset passed.
+        if isinstance(args[0], str):  
+            # Only a name of a subset was passed, no more parameters to be expected.
             target_set = args[0]
         elif isinstance(args[0], tuple):  # Multiple arguments were passed
             target_set = args[0][0]
-        # Checking for existence of subset:
+            # Checking for existence of subset:
+            if len(args[0]) > 1:  # Still more arguments
+                group = args[0][1]
+                if len(args[0]) > 2:  # There are still arguments left
+                    one_to_one = args[0][2]
+                    if one_to_one == 'one_to_one':
+                        # A subset is requested where the ratio between treated and untreated
+                        # observations is 1:1.
+                        # Check existence:
+                        if target_set == 'training_set':
+                            if target_set + '11' not in self.datasets.keys():
+                                # If it does not exist, create it.
+                                self._create_subsets(mode='one_to_one')
+                                target_set = target_set + '_11'
+                        else:
+                            raise Exception("One-to-one subsampled dataset only available for training set.")
+                            print("Currently no undersampled datasets for other " +
+                                "than training set.")
+                    if len(args[0]) > 3:
+                        raise Exception("Too many arguments.")
+
         if target_set not in self.datasets.keys():
             # Target_set does not exist yet.
             if target_set in ['training_set_2', 'validation_set_2a',
@@ -928,27 +953,9 @@ class DatasetCollection(object):
                 + "The testing set (4/16 of the data) remains unchanged."
                 print(txt)
                 self._create_subsets(mode='two_validation_sets')
-        if len(args[0]) > 1:  # There are still arguments left
-            one_to_one = args[0][1]
-            if one_to_one == 'one_to_one':
-                # A subset is requested where the ratio between treated and untreated
-                # observations is 1:1.
-                # Check existence:
-                target_set = target_set + '11'
-                if target_set not in self.dataset.keys():
-                    # If it does not exist, create it.
-                    self._create_subsets(mode='one_to_one')
-
-                elif target_set is not None:
-                    print("Currently no undersampled datasets for other " +
-                          "than training set.")
-                if len(args[0]) > 2:
-                    group = args[0][2]
-                    if len(args[0]) > 3:
-                        raise Exception("Too many arguments.")
-        else:
-            raise Exception("Error in __getitem__()")
-
+            else:
+                txt = "No dataset named {} available.".format(target_set)
+                raise Exception(txt)
         # Store approproate data in tmp:
         if group == 'treatment':
             idx = self.datasets[target_set]['t']
