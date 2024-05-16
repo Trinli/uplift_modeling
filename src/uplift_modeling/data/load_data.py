@@ -1,14 +1,13 @@
 """
-Classes for handling datasets for uplift experiments.
+Class for handling datasets for uplift experiments and 
+one class to wrap this class in torch-compatible format.
 
-Notes:
-Support for ordinal variables could perhaps be added. Somewhat involved
- as labels needs to be mapped to values (e.g. likert-scale).
-Perhaps add tests for load_data.
-Support for other dependent variables than simply 0/1 could be added
- following the same logic used with treatment labels (t_labels).
+Development ideas:
+Support for ordinal variables could perhaps be added.
+Support for multi-class or continuous dependent variables
+could perhaps be added following the same logic used with 
+treatment labels.
 Perhaps expand the documentation for the data format.
-Not tested for h5py-files.
 """
 
 import csv
@@ -175,46 +174,72 @@ LENTA_FORMAT = {'file_name': 'lenta_dataset.csv',
                'data_type': 'float32'}  # Data will be set to this type.
 
 
-
 class DatasetCollection(object):
     """
-    Class for handling dataset related operations (loading, normalization,
-     dummy-coding, access, group-subsetting, undersampling).
+    Class for loading datasets from csv-files and pre-processing
+    them for model development. The pre-processing includes
+    normalization, dummy-coding for categorical features, preparation
+    of variable transformations, and subsampling into training, validation,
+    and testing sets.
+    The class also includes getters and setters and methods for
+    subsetting and undersampling the data.
 
-    Methods:
-    __init__(file_name (str), mode={None, 'test'}):
-     Initialization loads data from specified csv-file.
-    _normalize_data(): Normalizes data. Default normalization is 'v3'
-     specified in DATA_NORMALIZATION and includes centering and setting
-     of variance to 1 for features.
-    _load_data(): Imports csv-files
-    _extract_data(): Reads in features, class-labels, and treatment-label
-     following the data specified in self.data_format.
-    _create_subsets(): Creates training, validation, and testing sets with
-     splits 1/2, 1/4, 1/4, and further adds a second training, and two
-     validation sets with 6/16, 3/16, 3/16 splits. This leaves the testing
-     set untouched.
-    __add_set(): Auxiliary function for _create_subsets().
-    __getitem__(): Method for accessing all data once loaded in the initialization.
-    _undersample(): Method for undersampling data both to 1:1 and 1:1:1:1.
-    __subset_by_group(): Method for selecting only treatment, control, or all data.
+    Parameters
+    ----------
+    file_name : str
+        Name of the csv-file containint the dataset with relative or absolute path.
+    data_format : dict
+        A dictionary containing necessary details of the dataset. See example below
+        for the Voter-dataset (Gerber, Green, & Larimer, 2008).
+
+    .. code-block::
+
+        VOTER_FORMAT = {'file_name': 'GerberGreenLarimer_APSR_2008_social_pressure.csv',
+        'X_idx': [i for i in range(8)] + [12],  # Indices for columns with features
+        'continuous_idx': [1, 12],  # Indices for continuous features
+        'categorical_idx': [0, 2, 3, 4, 5, 6, 7],  # Indices for categorical features
+        'y_idx': 10,  # Index for the column containing the dependent variable
+        'y_labels': ['Yes', 'No'],  # If provided, the first item in the list is converted
+        # to the positive label and the second to the negative. Otherwise the contents
+        # of the y_idx-column is converted by bool().
+        't_idx': 8,  # Index for the treatment label colum
+        't_labels': [' Neighbors', ' Control'],  # Labels for the selected treatments.
+        # Two treatment labels have to be provided.
+        'random_seed': 4,  # Seed for data shuffling. Set to None for no randomization.
+        'normalization': 'v3',  # 'v3' results in centering and normalization to unit variance
+        # 'v2' results in unit variance without centering, and None keeps the data as is.
+        # of continuous features.
+        'headers': True,  # 'True' drops a header row from the data.
+        'data_type': 'float32'}  # Data will be set to this type.
+    
+    Getters and Setters
+    -------------------
+    The features can be accessed with ``tmp_data['X']``, the treatment labels with
+    ``tmp_data['t']``, the dependent variable with ``tmp_data['y']``, the class-variable
+    transformation with ``tmp_data['z']`` (Jaskowski & Jaroszewicz, 2012), and the
+    outcome-transformation label with ``tmp_data['r']`` (Athey & Imbens, 2016). Note
+    that the CVT-transformation ``'z'`` does not automatically subsample the observations so
+    that there are equally many treated and untreated observations. This can be done with
+    the '1:1'-flag.
+
+    Specific subsets can be accessed with the keys ``'training_set'``, 
+    ``'validation_set'``, and ``'testing_set'`` for selected subsamples. E.g. 
+    ``tmp_data['training_set']['X']`` for the features of the training set.
+
+    The subset of treated or untreated observations can be accessed with ... what?
+    Currently with tmp_data['training_set', None, 'treatment']['X']...
+    or tmp_data['training_set', '1:1', 'treatment']['X'] to subsample the data so
+    that the ratio of treated and untreated observations is 1:1.
+
+    Methods
+    -------
+    CVT-balancing, undersampling.
+
+    Notes:
+    Pytorch dataloaders could also be stored in this object in a dict
+    in a similar way subsets are stored now.
     """
-    def __init__(self, file_name,
-                 data_format=DATA_FORMAT):
-        """
-        Method for initializing object of class DataSet that will handle
-        all dataset related issues.
-
-        Attributes:
-        file_name (str): {'criteo-uplift.h5', 'criteo100k.csv', 'criteo-uplift.csv'}
-        nro_features (int): number of features in dataset. Assumed to be in columns 0:nro_features.
-        seed (int): random seed to use for split of data.
-
-        Notes:
-        Potentially dataloaders could also be stored in this object i a dict
-         in the same way datasets are stored now. Would require carrying information
-         on treatment/control.
-        """
+    def __init__(self, file_name, data_format):
         self.file_name = file_name
         self.data_format = data_format
         self.nro_features = len(self.data_format['X_idx'])
@@ -411,6 +436,9 @@ class DatasetCollection(object):
         Auxiliary function for _create_subsets(). Adds usable datasets as dicts
         with X, y, t, and z. 'z' here refers to class-variable transformation
         following Jaskowski & Jaroszewicz (2012).
+        Note that this DOES NOT ENSURE p(t=1) = p(t=0), i.e. that there are equally
+        many treatement and control observations. This is required for CVT, hence
+        it needs to be handled somehow.
         """
         X_tmp = self.X[start_idx:stop_idx, :]
         y_tmp = self.y[start_idx:stop_idx]
@@ -442,6 +470,8 @@ class DatasetCollection(object):
         if self.data_format['normalization'] is None:
             pass
         elif self.data_format['normalization'] == 'v1':
+            # This sets the length of the vector representing one feature over all
+            # observations to 1. Not great.
             tmp = normalize(vector)
         elif self.data_format['normalization'] == 'v2':
             # Set variance to 1
