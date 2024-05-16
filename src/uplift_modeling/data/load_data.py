@@ -31,7 +31,6 @@ CRITEO_FORMAT = {'file_name': 'criteo-uplift.csv',
                'normalization': 'v3',
                'headers': True,  # 'True' drops a header row from the data.
                'data_type': 'float32'}  # Data will be set to this type.
-DATA_FORMAT = CRITEO_FORMAT  # Rename the above without breaking stuff.
 
 # This format is for the Hillstrom Mine that data -challenge dataset
 HILLSTROM_FORMAT_1 = {'file_name':
@@ -398,25 +397,23 @@ class DatasetCollection(object):
         self.__add_set('training_set_2', 0, n_samples * 6 // 16)
         self.__add_set('validation_set_2a', n_samples * 6 // 16, n_samples * 9 // 16)
         self.__add_set('validation_set_2b', n_samples * 9 // 16, n_samples * 12 // 16)
-        # Undersampled training set:
-        # Not creating the 1:1:1:1 sets by default anymore as of 12.3.2021
-        tmp = self._undersample('training_set', '1:1')
+        # Subsampled training set with 1:1 ratio or treated and untreated observations.
+        tmp = self._subsample('training_set', '1:1')
         self.datasets.update({'undersampled_training_set_11': tmp})
-        #tmp = self._undersample('training_set', '1:1:1:1')
-        #self.datasets.update({'undersampled_training_set_1111': tmp})
-        tmp = self._undersample('training_set_2', '1:1')
+        tmp = self._subsample('training_set_2', '1:1')
         self.datasets.update({'undersampled_training_set_2_11': tmp})
-        #tmp = self._undersample('training_set_2', '1:1:1:1')
-        #self.datasets.update({'undersampled_training_set_2_1111': tmp})
 
     def _revert_label(self, y_vec, t_vec):
         """
-        Class-variable transformation ("revert-label") approach
-        following Athey & Imbens (2015).
+        Variable transformation ("outcome transformation method," "revert-label") 
+        approach following Athey & Imbens (2015).
 
-        Args:
-        y_vec (np.array([float])): Array of conversion values in samples.
-        t_vec (np.array([bool])): Array of treatment labels for same samples.
+        Parameters:
+        -----------
+        y_vec : np.array([float])) 
+            Array of conversion values in samples.
+        t_vec : np.array([bool]) 
+            Array of treatment labels for same samples.
         """
         N_t = sum(t_vec == True)
         N_c = sum(t_vec == False)
@@ -438,7 +435,7 @@ class DatasetCollection(object):
         following Jaskowski & Jaroszewicz (2012).
         Note that this DOES NOT ENSURE p(t=1) = p(t=0), i.e. that there are equally
         many treatement and control observations. This is required for CVT, hence
-        it needs to be handled somehow.
+        it needs to be handled elsewhere.
         """
         X_tmp = self.X[start_idx:stop_idx, :]
         y_tmp = self.y[start_idx:stop_idx]
@@ -461,10 +458,12 @@ class DatasetCollection(object):
         """
         Method for normalizing data.
 
-        Attributes:
-        version (str): {'v1', 'v2', 'v3'}
-         -v1 and v2 are for testing purposes
-         -v3 (default) centers data and sets variance to unit (1)
+        Parameters:
+        -----------
+        version : str
+         None to keep data as is, 'v1' for normalization of vector over all users of one feature
+         to unit variance (not recommended), 'v2' for unit variance, 'v3' for centralization and
+         unit variance. 'v3' or None is recommended.
         """
         # This normalizes features as stated in Diemert & al.
         if self.data_format['normalization'] is None:
@@ -482,9 +481,9 @@ class DatasetCollection(object):
             tmp = tmp / np.std(tmp)
         return tmp
 
-    def _undersample(self, name, method):
+    def _subsample(self, name, method):
         """
-        Method that adds undersampled data as np.array into dataset dict
+        Method that adds subsampled data as np.array into dataset dict
         together with 'X', 'y', and 't'.
 
         Args:
@@ -1023,7 +1022,7 @@ class DatasetWrapper(Dataset):
 
 # Get some data quickly:
 def get_criteo_test_data():
-    data = DatasetCollection("./datasets/criteo_100k.csv", DATA_FORMAT)
+    data = DatasetCollection("./datasets/criteo_100k.csv", CRITEO_FORMAT)
     return data
 
 def get_hillstrom_data():
