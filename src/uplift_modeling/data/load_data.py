@@ -403,9 +403,9 @@ class DatasetCollection(object):
         n_samples = self.X.shape[0]
         if mode == 'basic':
             # Add basic training, validation, and testing sets to self.datasets:
-            self.__add_set('training_set', 0, n_samples // 2)
-            self.__add_set('validation_set', n_samples // 2, n_samples * 3 // 4)
-            self.__add_set('testing_set', n_samples * 3 // 4, n_samples)
+            self.add_set('training_set', 0, n_samples // 2)
+            self.add_set('validation_set', n_samples // 2, n_samples * 3 // 4)
+            self.add_set('testing_set', n_samples * 3 // 4, n_samples)
         elif mode == 'one_to_one':
             # Subsampled training set with 1:1 ratio of treated and untreated observations.
             # Useful for class-variable transformation.
@@ -418,9 +418,9 @@ class DatasetCollection(object):
         elif mode == 'two_validation_sets':
             # Add also slightly different split that enables early stopping of
             # neural networks using separate validation set:
-            self.__add_set('training_set_2', 0, n_samples * 6 // 16)
-            self.__add_set('validation_set_2a', n_samples * 6 // 16, n_samples * 9 // 16)
-            self.__add_set('validation_set_2b', n_samples * 9 // 16, n_samples * 12 // 16)
+            self.add_set('training_set_2', 0, n_samples * 6 // 16)
+            self.add_set('validation_set_2a', n_samples * 6 // 16, n_samples * 9 // 16)
+            self.add_set('validation_set_2b', n_samples * 9 // 16, n_samples * 12 // 16)
         else:
             print("Mode '{}' not recognised.".format(mode))
 
@@ -449,7 +449,7 @@ class DatasetCollection(object):
         r_vec = r_vec.astype(self.data_format['data_type'])
         return r_vec
 
-    def __add_set(self, name, start_idx, stop_idx):
+    def add_set(self, name, start_idx, stop_idx):
         """
         Auxiliary function for _create_subsets(). Adds usable datasets as dicts
         with X, y, t, and z. 'z' here refers to class-variable transformation
@@ -469,11 +469,6 @@ class DatasetCollection(object):
                                      'z': z_tmp,
                                      'r': r_tmp}})
 
-    def add_set(self, name, start_idx, stop_idx):
-        """
-        Public method of __add_set()
-        """
-        self.__add_set(name, start_idx, stop_idx)
 
     def _normalize_data(self, vector):
         """
