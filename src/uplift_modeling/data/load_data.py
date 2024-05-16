@@ -398,9 +398,9 @@ class DatasetCollection(object):
         self.__add_set('validation_set_2a', n_samples * 6 // 16, n_samples * 9 // 16)
         self.__add_set('validation_set_2b', n_samples * 9 // 16, n_samples * 12 // 16)
         # Subsampled training set with 1:1 ratio or treated and untreated observations.
-        tmp = self._subsample('training_set', '1:1')
+        tmp = self._subsample('training_set')
         self.datasets.update({'undersampled_training_set_11': tmp})
-        tmp = self._subsample('training_set_2', '1:1')
+        tmp = self._subsample('training_set_2')
         self.datasets.update({'undersampled_training_set_2_11': tmp})
 
     def _revert_label(self, y_vec, t_vec):
@@ -481,72 +481,32 @@ class DatasetCollection(object):
             tmp = tmp / np.std(tmp)
         return tmp
 
-    def _subsample(self, name, method):
+    def _subsample():
         """
-        Method that adds subsampled data as np.array into dataset dict
-        together with 'X', 'y', and 't'.
+        Method to subsample the training set so that the ratio between
+        treated and untreated observations is 1:1. Method adds
+        subset to datasets-dictionary in self.
 
-        Args:
-        name (str): Name of set to be added to
-        # Where do we get the info on which set to undersample? Always
-        # training_set?
-        1:1 undersampling only for SVM double classifier (with separated
-        (treatment and control sets)
-        1:1:1:1 used together with CVT (any base learner)
-
-        Notes:
-        Only the '1:1' is theoretically sound in this method. Changing to 1:1:1:1
-        is just a quick hack. k_undersampling() is better.
+        Parameters:
+        -----------
+        name : str
+            Name of set to be added to self.datasets-dictionary.
         """
+        name = 'one-to-one' 
         tmp = self.datasets[name]
         tot_samples = len(tmp['t'])
-        if method == '1:1':
-            # 1:1, treatment:control ratio
-            # Smaller of these is the number of samples we want
-            n_samples = int(np.min([sum(tmp['t']), sum(~tmp['t'])]))
-            treatment_idx = np.array([i for i, t in zip(range(tot_samples), tmp['t'])
-                                      if t])
-            control_idx = np.array([i for i, t in zip(range(tot_samples), tmp['t'])
-                                    if not t])
-            # Shuffle:  -no random seed?
-            np.random.shuffle(treatment_idx)
-            np.random.shuffle(control_idx)
-            idx = np.concatenate([treatment_idx[:n_samples],
-                                  control_idx[:n_samples]])
-        elif method == '1:1:1:1':
-            print("Note that the 1:1:1:1 method is not theoretically sound. Perhaps deprecate?")
-            # positive_treatment:negative_treatment:positive_control:
-            # negative_control, 1:1:1:1
-            # Looking for min of positive or negative classes in any group:
-            n_samples = int(np.min([np.sum(tmp['t'] * tmp['y']),
-                                       np.sum(~tmp['t'] * tmp['y']),
-                                       np.sum(tmp['t'] * (tmp['y'] == 0)),
-                                       np.sum(~tmp['t'] * (tmp['y'] == 0))]))
-            pos_treatment_idx = np.array([i for i, t, y in zip(range(tot_samples),
-                                                               tmp['t'], tmp['y'])
-                                          if t & (y == 1)])
-            neg_treatment_idx = np.array([i for i, t, y in zip(range(tot_samples),
-                                                               tmp['t'], tmp['y'])
-                                          if t & (y == 0)])
-            pos_control_idx = np.array([i for i, t, y in zip(range(tot_samples),
-                                                             tmp['t'], tmp['y'])
-                                        if (not t) & (y == 1)])
-            neg_control_idx = np.array([i for i, t, y in zip(range(tot_samples),
-                                                             tmp['t'], tmp['y'])
-                                        if (not t) & (y == 0)])
-            # Shuffle so that [:n_samples] is a random sample:
-            np.random.shuffle(pos_treatment_idx)
-            np.random.shuffle(neg_treatment_idx)
-            np.random.shuffle(pos_control_idx)
-            np.random.shuffle(neg_control_idx)
-            # Take #n_samples from each type and concatenate:
-            idx = np.concatenate([pos_treatment_idx[:n_samples],
-                                  neg_treatment_idx[:n_samples],
-                                  pos_control_idx[:n_samples],
-                                  neg_control_idx[:n_samples]])
-        else:
-            raise Exception("The defined undersampling method, " +
-                            "{}, does not exist".format(method))
+        # 1:1, treatment:control ratio
+        # Smaller of these is the number of samples we want
+        n_samples = int(np.min([sum(tmp['t']), sum(~tmp['t'])]))
+        treatment_idx = np.array([i for i, t in zip(range(tot_samples), tmp['t'])
+                                    if t])
+        control_idx = np.array([i for i, t in zip(range(tot_samples), tmp['t'])
+                                if not t])
+        # Shuffle:
+        np.random.shuffle(treatment_idx)
+        np.random.shuffle(control_idx)
+        idx = np.concatenate([treatment_idx[:n_samples],
+                                control_idx[:n_samples]])
         # Shuffle index for good measure (prevent any idiosyncrasies in
         # algorithms to have weird effects)
         np.random.shuffle(idx)
