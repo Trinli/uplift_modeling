@@ -476,8 +476,8 @@ class DatasetCollection(object):
         start_idx : int
             Index of the first observation to be included in the subset. start_idx 
             and stop_idx together defines a range.
-        stop_idx : Index of the first observation to **not be included** in the
-            the subset.
+        stop_idx : int
+            Index of the first observation to **not be included** in the subset.
         """
         X_tmp = self.X[start_idx:stop_idx, :]
         y_tmp = self.y[start_idx:stop_idx]
@@ -493,11 +493,11 @@ class DatasetCollection(object):
 
     def _normalize_data(self, vector):
         """
-        Method for normalizing data. Used by _load_data().
+        Method for normalizing data. Used at initialization by _load_data().
 
         Parameters:
         -----------
-        'normalization' : str 
+        (data_format['normalization'] : str)
             'normalization' needs to be passed in data_format at initialization.
             None to keep data as is, 'v1' for normalization of vector over all users of one feature
             to unit variance (not recommended), 'v2' for unit variance, 'v3' for centralization and
@@ -558,15 +558,19 @@ class DatasetCollection(object):
         return {'X': X, 'y': y, 't': t, 'z': z, 'r': r}
 
 
-    def k_undersampling(self, k, group_sampling='11'):
+    def k_undersampling(self, k, group_sampling='natural'):
         """
-        Method returns a training set where the rate of positive samples
+        Method returns a training set where the rate of positive observations
         is changed by a factor of k by either reducing the number of
-        negative samples or increasing the number of positive samples.
+        negative observations or increasing the number of positive observations.
         The method also changes the sampling rate of treatment vs. control
-        samples to 1:1. This is suitable for class-variable transformation.
+        observations to 1:1. This is suitable for class-variable transformation.
         This is the original implementation of k-undersampling by
         Nyberg & Klami 2021.
+
+        If k is very large the number of negative observations might drop to zero,
+        or conversely if k is very small the number of positive observations might
+        drop to zero. There is not a check for this.
 
         Parameters:
         -----------
@@ -574,19 +578,13 @@ class DatasetCollection(object):
             This number will determine the change in positive rate in the data.
         group_sampling : str 
             'natural' implies no change in group sampling rate, i.e. the number
-            of samples in the treatment and control groups stay constant. 
-            '11' indicates that there should be equally many treatment and
+            of observations in the treatment and control groups stay constant. 
+            '1:1' indicates that there should be equally many treatment and
             control observations. This is useful with CVT and enforces
             p(t=0) = p(t=1)).
-
-        Notes:
-        ______
-        If k is very large the number of negative samples might drop to zero,
-        or conversely if k is very small the number of positive samples might
-        drop to zero. There is not a check for this.
         """
         # Number of positives in treatment group:
-        t_data = self['training_set', None, 'treatment']
+        t_data = self['training_set', 'treatment']
         num_pos_t = sum(t_data['y'])
         # Find indices for all positive treatment samples
         pos_idx_t = np.array([i for i, tmp in enumerate(zip(self['training_set']['y'],
@@ -599,7 +597,7 @@ class DatasetCollection(object):
                               if bool(tmp[0]) is False and bool(tmp[1]) is True])
         num_tot_t = len(t_data['y'])
 
-        c_data = self['training_set', None, 'control']
+        c_data = self['training_set', 'control']
         num_pos_c = sum(c_data['y'])
         # Find indices for all positive control samples
         pos_idx_c = np.array([i for i, tmp in enumerate(zip(self['training_set']['y'],
@@ -634,7 +632,7 @@ class DatasetCollection(object):
 
         # Change number of samples to be picked in treatment or control group to
         # make num_tot_t == num_tot_c:
-        if group_sampling == '11':
+        if group_sampling == '1:1':
             num_tot_c_new = num_neg_c_new + num_pos_c_new
             num_tot_t_new = num_neg_t_new + num_pos_t_new
             if num_tot_c_new > num_tot_t_new:
@@ -711,7 +709,7 @@ class DatasetCollection(object):
             k_c = k_t
 
         # Number of positives in treatment group:
-        t_data = self[target_set, None, 'treatment']
+        t_data = self[target_set, 'treatment']
         num_pos_t = sum(t_data['y'])
         # Find indices for all positive treatment samples
         pos_idx_t = np.array([i for i, tmp in enumerate(zip(self[target_set]['y'],
@@ -725,7 +723,7 @@ class DatasetCollection(object):
         num_tot_t = len(t_data['y'])
         assert k_t * num_pos_t / num_tot_t < 1, "Not enough negative treatment samples for k_t: {}".format(k_t)
 
-        c_data = self[target_set, None, 'control']
+        c_data = self[target_set, 'control']
         num_pos_c = sum(c_data['y'])
         # Find indices for all positive control samples
         pos_idx_c = np.array([i for i, tmp in enumerate(zip(self[target_set]['y'],
@@ -826,8 +824,8 @@ class DatasetCollection(object):
             class observations. k > 1 will lead to negative observations being dropped and k < 1
             to positive ones being dropped so that p(y=1) = k * \tilde{p}(y=1).
         """
-        n_samples = len(self['training_set', None, 'all']['y'])
-        n_positives = sum(self['training_set', None, 'all']['y'])
+        n_samples = len(self['training_set', 'all']['y'])
+        n_positives = sum(self['training_set', 'all']['y'])
         n_negatives = n_samples - n_positives
         conversion_rate = n_positives / n_samples
         assert k > 0, "k needs to be larger than 0."
@@ -839,13 +837,13 @@ class DatasetCollection(object):
             n_neg_drop = n_samples * (1 - 1 / k)  # This when k >= 1.
             drop_rate = n_neg_drop / n_negatives
             # Treated samples:
-            tmp_pos_n = sum(self['training_set', None, 'treatment']['y'])
-            tmp_n = len(self['training_set', None, 'treatment']['y'])
+            tmp_pos_n = sum(self['training_set', 'treatment']['y'])
+            tmp_n = len(self['training_set', 'treatment']['y'])
             tmp_samples_to_drop = (tmp_n - tmp_pos_n) * drop_rate
             k_t = (tmp_pos_n / (tmp_n - tmp_samples_to_drop)) / (tmp_pos_n / tmp_n)
             # Control samples:
-            tmp_pos_n = sum(self['training_set', None, 'control']['y'])
-            tmp_n = len(self['training_set', None, 'control']['y'])
+            tmp_pos_n = sum(self['training_set', 'control']['y'])
+            tmp_n = len(self['training_set', 'control']['y'])
             tmp_samples_to_drop = (tmp_n - tmp_pos_n) * drop_rate
             k_c = (tmp_pos_n / (tmp_n - tmp_samples_to_drop)) / (tmp_pos_n / tmp_n)
         elif 0 < k < 1:
@@ -859,15 +857,15 @@ class DatasetCollection(object):
             print("n_negatives: {}".format(n_negatives))
             print("Drop rate: {}".format(drop_rate))
             # Treated samples:
-            tmp_pos_n = sum(self['training_set', None, 'treatment']['y'])
-            tmp_n = len(self['training_set', None, 'treatment']['y'])
+            tmp_pos_n = sum(self['training_set', 'treatment']['y'])
+            tmp_n = len(self['training_set', 'treatment']['y'])
             tmp_samples_to_drop = tmp_pos_n * drop_rate
             k_t = (tmp_pos_n - tmp_samples_to_drop) /\
                 (tmp_n - tmp_samples_to_drop) /\
                     (tmp_pos_n / tmp_n)
             # Control samples:
-            tmp_pos_n = sum(self['training_set', None, 'control']['y'])
-            tmp_n = len(self['training_set', None, 'control']['y'])
+            tmp_pos_n = sum(self['training_set', 'control']['y'])
+            tmp_n = len(self['training_set', 'control']['y'])
             tmp_samples_to_drop = tmp_pos_n * drop_rate
             k_c = (tmp_pos_n - tmp_samples_to_drop) /\
                 (tmp_n - tmp_samples_to_drop) /\
