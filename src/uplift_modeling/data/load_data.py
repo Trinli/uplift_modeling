@@ -185,7 +185,7 @@ LENTA_FORMAT = {'file_name': 'lenta_dataset.csv',
                'data_type': 'float32'}  # Data will be set to this type.
 
 
-class DatasetCollection(object):
+class UpliftDataset(object):
     """
     Class for handling datasets for uplift modeling.
     This class provides easy access to the features, variables,
@@ -701,7 +701,7 @@ class DatasetCollection(object):
             not set.
         target_set : str 
             Which set to sample the undersampled dataset from. Needs
-            to exist as key in DatasetCollection.
+            to exist as key in UpliftDataset.
 
         Returns
         -------
@@ -1087,21 +1087,21 @@ def quick_load(dataset='hillstrom'):
     """
     if dataset == 'hillstrom':
         print("Loading the Hillstrom dataset.")
-        return DatasetCollection("./datasets/" + HILLSTROM_FORMAT['file_name'],
+        return UpliftDataset("./datasets/" + HILLSTROM_FORMAT['file_name'],
                                 HILLSTROM_FORMAT)
     elif dataset == 'criteo':
         print("Loading subset of the Criteo-dataset with 100k observations.")
-        return DatasetCollection("./datasets/criteo_100k.csv", CRITEO_FORMAT)
+        return UpliftDataset("./datasets/criteo_100k.csv", CRITEO_FORMAT)
     elif dataset == 'voter':
         print("Loading the Voter-dataset.")
-        return DatasetCollection('./datasets/' + VOTER_FORMAT['file_name'],
+        return UpliftDataset('./datasets/' + VOTER_FORMAT['file_name'],
                                  VOTER_FORMAT)
     elif dataset == 'lenta':
         print("Loading mini-version of Lenta-dataset.")
-        return DatasetCollection("./datasets/lenta_mini.csv", LENTA_FORMAT)
+        return UpliftDataset("./datasets/lenta_mini.csv", LENTA_FORMAT)
     elif dataset == 'starbucks':
         print("Loading the Startbucks-dataset.")
-        return DatasetCollection('./datasets/' + STARBUCKS_FORMAT['file_name'],
+        return UpliftDataset('./datasets/' + STARBUCKS_FORMAT['file_name'],
                                  STARBUCKS_FORMAT)
     else:
         print("Select dataset from options 'hillstrom', 'criteo', 'voter', and 'starbucks'.")
