@@ -1,5 +1,5 @@
 # Uplift Modeling
-Code relating to uplift modeling
+Code relating to uplift modeling. This is the code for the original experiments in the mentioned publications before packaging the module and making it pip installable.
 
 1. Download data to ./datasets/
 -http://ailab.criteo.com/criteo-uplift-prediction-dataset/
