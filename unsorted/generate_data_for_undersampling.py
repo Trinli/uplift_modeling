@@ -1,10 +1,12 @@
 """
-Functions and script for generating data from criteo2
+Function for generating subsamples from Criteo2
 with original conversion rates, but subsampled so that
-there are equally many treatment and control samples.
-We do this for "full" data, half of that, etc up to
-1/128 of the "full" (which is around 4M samples).
-
+there are equally many treatment and control observations.
+8 subsamples are generated so that the first subsample
+has as many observations as possible while enforcing 1:1 ratio
+between treated and untreated observations (approx. 4M).
+Then this is done for half of this data, one quarter, etc.
+up to 1/128 of the first subsample.
 """
 
 import uplift_modeling.models.uplift_calibration as uplift_calibration
