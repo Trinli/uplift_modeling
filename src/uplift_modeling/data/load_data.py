@@ -270,6 +270,7 @@ class DatasetCollection(object):
         # Populate self.datasets with predefined subsets:
         self._create_subsets()
 
+
     def _load_data(self):
         """
         Method for loading data from file and parsing it following the
@@ -360,18 +361,18 @@ class DatasetCollection(object):
 
         # Print some statistics for the loaded data:
         print("Dataset {} loaded".format(self.file_name))
-        print("\t\t\t#y\t#samples\tconversion rate")
-        print("All samples", end='\t\t')
+        print("\t\t\t\t#y\t#observations\tconversion rate")
+        print("All observations", end='\t\t')
         print(sum(self.y), end='\t')
-        print(len(self.y), end='\t')
+        print(len(self.y), end='\t\t')
         print(sum(self.y)/len(self.y))
-        print("Treatment samples", end='\t')
+        print("Treatment observations", end='\t\t')
         print(sum(self.y[self.t]), end='\t')
-        print(sum(self.t), end='\t')
+        print(sum(self.t), end='\t\t')
         print(sum(self.y[self.t]/sum(self.t)))
-        print("Control samples", end='\t\t')
+        print("Control observations", end='\t\t')
         print(sum(self.y[~self.t]), end='\t')
-        print(sum(~self.t), end='\t')
+        print(sum(~self.t), end='\t\t')
         print(sum(self.y[~self.t]/sum(~self.t)))
         conversion_rate_treatment = sum(self.y[self.t])/sum(self.t)
         conversion_rate_control = sum(self.y[~self.t])/sum(~self.t)
@@ -411,12 +412,12 @@ class DatasetCollection(object):
             and validation sets.
         """
         # Using a 50/25/25 split
-        n_samples = self.X.shape[0]
+        n_observations = self.X.shape[0]
         if mode == 'basic':
             # Add basic training, validation, and testing sets to self.datasets:
-            self.add_set('training_set', 0, n_samples // 2)
-            self.add_set('validation_set', n_samples // 2, n_samples * 3 // 4)
-            self.add_set('testing_set', n_samples * 3 // 4, n_samples)
+            self.add_set('training_set', 0, n_observations // 2)
+            self.add_set('validation_set', n_observations // 2, n_observations * 3 // 4)
+            self.add_set('testing_set', n_observations * 3 // 4, n_observations)
         elif mode == '1:1':
             # Subsampled training set with 1:1 ratio of treated and untreated observations.
             # Useful for class-variable transformation.
@@ -430,10 +431,10 @@ class DatasetCollection(object):
         elif mode == 'two_validation_sets':
             # Add also slightly different split that enables early stopping of
             # neural networks using separate validation set.
-            # Idx n_samples * 12 // 16 to n_samples * 16 // 16 is the testing set.
-            self.add_set('training_set_2', 0, n_samples * 6 // 16)
-            self.add_set('validation_set_2a', n_samples * 6 // 16, n_samples * 9 // 16)
-            self.add_set('validation_set_2b', n_samples * 9 // 16, n_samples * 12 // 16)
+            # Idx n_observations * 12 // 16 to n_observations * 16 // 16 is the testing set.
+            self.add_set('training_set_2', 0, n_observations * 6 // 16)
+            self.add_set('validation_set_2a', n_observations * 6 // 16, n_observations * 9 // 16)
+            self.add_set('validation_set_2b', n_observations * 9 // 16, n_observations * 12 // 16)
         else:
             print("Mode '{}' not recognised.".format(mode))
 
@@ -445,14 +446,14 @@ class DatasetCollection(object):
         Parameters:
         -----------
         y_vec : np.array([float])) 
-            Array of conversion values in samples.
+            Array of conversion values in observations.
         t_vec : np.array([bool]) 
-            Array of treatment labels for same samples.
+            Array of treatment labels for same observations.
         """
         N_t = sum(t_vec == True)
         N_c = sum(t_vec == False)
         # Sanity check:
-        assert N_t + N_c == len(t_vec), "Error in sample count (_revet_label())."
+        assert N_t + N_c == len(t_vec), "Error in observation count (_revet_label())."
         # This needs to be sorted out.
         p_t = N_t / (N_t + N_c)
         assert 0.0 < p_t < 1.0, "Revert-label cannot be estimated from only t or c observations."
@@ -531,18 +532,18 @@ class DatasetCollection(object):
             Name of set to be subsampled. Must exist in self.datasets.keys().
         """
         tmp = self.datasets[target_set]
-        tot_samples = len(tmp['t'])
-        # Smaller of these is the number of samples we want
-        n_samples = int(np.min([sum(tmp['t']), sum(~tmp['t'])]))
-        treatment_idx = np.array([i for i, t in zip(range(tot_samples), tmp['t'])
+        tot_observations = len(tmp['t'])
+        # Smaller of these is the number of observations we want
+        n_observations = int(np.min([sum(tmp['t']), sum(~tmp['t'])]))
+        treatment_idx = np.array([i for i, t in zip(range(tot_observations), tmp['t'])
                                     if t])
-        control_idx = np.array([i for i, t in zip(range(tot_samples), tmp['t'])
+        control_idx = np.array([i for i, t in zip(range(tot_observations), tmp['t'])
                                 if not t])
         # Shuffle:
         np.random.shuffle(treatment_idx)
         np.random.shuffle(control_idx)
-        idx = np.concatenate([treatment_idx[:n_samples],
-                                control_idx[:n_samples]])
+        idx = np.concatenate([treatment_idx[:n_observations],
+                                control_idx[:n_observations]])
         # Shuffle index for good measure (prevent any idiosyncrasies in
         # algorithms to have weird effects)
         np.random.shuffle(idx)
@@ -591,12 +592,12 @@ class DatasetCollection(object):
         # Number of positives in treatment group:
         t_data = self['training_set', 'treatment']
         num_pos_t = sum(t_data['y'])
-        # Find indices for all positive treatment samples
+        # Find indices for all positive treatment observations
         pos_idx_t = np.array([i for i, tmp in enumerate(zip(self['training_set']['y'],
                                                             self['training_set']['t']))
                               if bool(tmp[0]) is True and bool(tmp[1]) is True])
         num_neg_t = sum(~t_data['y'])
-        # Find indices for all negative treatment samples:
+        # Find indices for all negative treatment observations:
         neg_idx_t = np.array([i for i, tmp  in enumerate(zip(self['training_set']['y'],
                                                              self['training_set']['t']))
                               if bool(tmp[0]) is False and bool(tmp[1]) is True])
@@ -604,49 +605,49 @@ class DatasetCollection(object):
 
         c_data = self['training_set', 'control']
         num_pos_c = sum(c_data['y'])
-        # Find indices for all positive control samples
+        # Find indices for all positive control observations
         pos_idx_c = np.array([i for i, tmp in enumerate(zip(self['training_set']['y'],
                                                             self['training_set']['t']))
                               if bool(tmp[0]) is True and bool(tmp[1]) is False])
         num_neg_c = sum(~c_data['y'])
-        # Find indices for all negative control samples:
+        # Find indices for all negative control observations:
         neg_idx_c = np.array([i for i, tmp in enumerate(zip(self['training_set']['y'],
                                                             self['training_set']['t']))
                               if bool(tmp[0]) is False and bool(tmp[1]) is False])
         num_tot_c = len(c_data['y'])
-        # Adjust the total number of positive and negative samples in treatment and
+        # Adjust the total number of positive and negative observations in treatment and
         # control groups separately to change the positive rate by k:
         if k >= 1:
             num_neg_c_new = int(round(num_tot_c // k) - num_pos_c)
-            assert num_neg_c_new > 0, "k {} causes all negative control samples to be dropped".format(k)
+            assert num_neg_c_new > 0, "k {} causes all negative control observations to be dropped".format(k)
             num_neg_t_new = int(round(num_tot_t // k) - num_pos_t)
-            assert num_neg_t_new > 0, "k {} causes all negative treatment samples to be dropped".format(k)
+            assert num_neg_t_new > 0, "k {} causes all negative treatment observations to be dropped".format(k)
             num_pos_c_new = num_pos_c
             num_pos_t_new = num_pos_t
         elif k < 1 and k > 0:  # Aiming for k * pos/tot = pos_new / tot_new
             num_neg_c_new = num_neg_c  # stays constant
             num_pos_c_new = int(round(k * num_pos_c / num_tot_c * num_neg_c /\
                 (1 - k * num_pos_c / num_tot_c)))
-            assert num_pos_c_new > 0, "k {} causes all positive control samples to be dropped".format(k)
+            assert num_pos_c_new > 0, "k {} causes all positive control observations to be dropped".format(k)
             num_neg_t_new = num_neg_t  # stays constant
             num_pos_t_new = int(round(k * num_pos_t / num_tot_t * num_neg_t /\
                 (1 - k * num_pos_t / num_tot_t)))
-            assert num_pos_t_new > 0, "k {} causes all positive control samples to be dropped".format(k)
+            assert num_pos_t_new > 0, "k {} causes all positive control observations to be dropped".format(k)
         else:
             raise ValueError("k needs to be larger than 0")
 
-        # Change number of samples to be picked in treatment or control group to
+        # Change number of observations to be picked in treatment or control group to
         # make num_tot_t == num_tot_c:
         if group_sampling == '1:1':
             num_tot_c_new = num_neg_c_new + num_pos_c_new
             num_tot_t_new = num_neg_t_new + num_pos_t_new
             if num_tot_c_new > num_tot_t_new:
-                # Reduce number of control samples:
+                # Reduce number of control observations:
                 coef = num_tot_t_new / num_tot_c_new
                 num_neg_c_new = int(coef * num_neg_c_new)
                 num_pos_c_new = int(coef * num_pos_c_new)
             else:
-                # Reduce number of treatment samples:
+                # Reduce number of treatment observations:
                 coef = num_tot_c_new / num_tot_t_new
                 num_neg_t_new = int(coef * num_neg_t_new)
                 num_pos_t_new = int(coef * num_pos_t_new)
@@ -686,15 +687,15 @@ class DatasetCollection(object):
         Parameters
         -----------
         k_t : float 
-            Value of k for undersampling of treated samples.
-            Value in [0, inf]. For values below 1, positive samples are
+            Value of k for undersampling of treated observations.
+            Value in [0, inf]. For values below 1, positive observations are
             dropped.
         k_c : float 
             Gets value k_t unless k_c is specified. I that case
             it works like k_undersampling.
         group_sampling : str 
             If set to '1:1' there will be equally many
-            treatment and control samples.
+            treatment and control observations.
         seed : int 
             Random seed for numpy. If set to None, random seed is
             not set.
@@ -708,46 +709,46 @@ class DatasetCollection(object):
             Undersampled data is returned in a dict with keys 'X', 'y', 't', 'z', and 'r'.
         """
         if k_c is None:
-            # Use same k for both treated and control samples.
+            # Use same k for both treated and control observations.
             k_c = k_t
 
         # Number of positives in treatment group:
         t_data = self[target_set, 'treatment']
         num_pos_t = sum(t_data['y'])
-        # Find indices for all positive treatment samples
+        # Find indices for all positive treatment observations
         pos_idx_t = np.array([i for i, tmp in enumerate(zip(self[target_set]['y'],
                                                             self[target_set]['t']))
                               if bool(tmp[0]) is True and bool(tmp[1]) is True])
         num_neg_t = sum(~t_data['y'])
-        # Find indices for all negative treatment samples:
+        # Find indices for all negative treatment observations:
         neg_idx_t = np.array([i for i, tmp  in enumerate(zip(self[target_set]['y'],
                                                              self[target_set]['t']))
                               if bool(tmp[0]) is False and bool(tmp[1]) is True])
         num_tot_t = len(t_data['y'])
-        assert k_t * num_pos_t / num_tot_t < 1, "Not enough negative treatment samples for k_t: {}".format(k_t)
+        assert k_t * num_pos_t / num_tot_t < 1, "Not enough negative treatment observations for k_t: {}".format(k_t)
 
         c_data = self[target_set, 'control']
         num_pos_c = sum(c_data['y'])
-        # Find indices for all positive control samples
+        # Find indices for all positive control observations
         pos_idx_c = np.array([i for i, tmp in enumerate(zip(self[target_set]['y'],
                                                             self[target_set]['t']))
                               if bool(tmp[0]) is True and bool(tmp[1]) is False])
         num_neg_c = sum(~c_data['y'])
-        # Find indices for all negative control samples:
+        # Find indices for all negative control observations:
         neg_idx_c = np.array([i for i, tmp in enumerate(zip(self[target_set]['y'],
                                                             self[target_set]['t']))
                               if bool(tmp[0]) is False and bool(tmp[1]) is False])
         num_tot_c = len(c_data['y'])
-        assert k_c * num_pos_c / num_tot_c < 1, "Not enough negative samples for k_c: {}".format(k_c)
-        # Adjust the total number of positive and negative samples in treatment and
+        assert k_c * num_pos_c / num_tot_c < 1, "Not enough negative observations for k_c: {}".format(k_c)
+        # Adjust the total number of positive and negative observations in treatment and
         # control groups separately to change the positive rate by k:
 
         if k_t >= 1:
-            # Drop negative samples for k >= 1:
+            # Drop negative observations for k >= 1:
             num_neg_t_new = max(0, int(num_tot_t / k_t) - num_pos_t)
             num_pos_t_new = num_pos_t
         elif 1 > k_t > 0:  # Aiming for k * pos/tot = pos_new / tot_new
-            # Drop positive samples for k < 1:
+            # Drop positive observations for k < 1:
             num_neg_t_new = num_neg_t  # stays constant
             num_pos_t_new = max(0, int(k_t * num_pos_t / num_tot_t * num_neg_t /\
                                        (1 - k_t * num_pos_t / num_tot_t)))
@@ -755,29 +756,29 @@ class DatasetCollection(object):
             raise ValueError("k_t needs to be larger than 0")
 
         if k_c >= 1:
-            # Drop negative samples for k >= 1:
+            # Drop negative observations for k >= 1:
             num_neg_c_new = max(0, int(num_tot_c / k_c) - num_pos_c)
             num_pos_c_new = num_pos_c
         elif 1 > k_c > 0:  # Aiming for k * pos/tot = pos_new / tot_new
-            # Drop positive samples for k < 1:
+            # Drop positive observations for k < 1:
             num_neg_c_new = num_neg_c  # stays constant
             num_pos_c_new = max(0, int(k_c * num_pos_c / num_tot_c * num_neg_c /\
                                        (1 - k_c * num_pos_c / num_tot_c)))
         else:
             raise ValueError("k_c needs to be larger than 0")
 
-        # Change number of samples to be picked in treatment or control group to
+        # Change number of observations to be picked in treatment or control group to
         # make num_tot_t == num_tot_c:
         if group_sampling == '1:1':
             num_tot_c_new = num_neg_c_new + num_pos_c_new
             num_tot_t_new = num_neg_t_new + num_pos_t_new
             if num_tot_c_new > num_tot_t_new:
-                # Reduce number of control samples:
+                # Reduce number of control observations:
                 coef = num_tot_t_new / num_tot_c_new
                 num_neg_c_new = int(coef * num_neg_c_new)
                 num_pos_c_new = int(coef * num_pos_c_new)
             else:
-                # Reduce number of treatment samples:
+                # Reduce number of treatment observations:
                 coef = num_tot_c_new / num_tot_t_new
                 num_neg_t_new = int(coef * num_neg_t_new)
                 num_pos_t_new = int(coef * num_pos_t_new)
@@ -834,51 +835,51 @@ class DatasetCollection(object):
         """
         # 1. Estimate what k_t and k_c values a common k would correspond to 
         # 2. Call split_undersampling.
-        n_samples = len(self['training_set', 'all']['y'])
+        n_observations = len(self['training_set', 'all']['y'])
         n_positives = sum(self['training_set', 'all']['y'])
-        n_negatives = n_samples - n_positives
-        conversion_rate = n_positives / n_samples
+        n_negatives = n_observations - n_positives
+        conversion_rate = n_positives / n_observations
         assert k > 0, "k needs to be larger than 0."
         assert k * conversion_rate <= 1, "Given k too large for data."
         if k >= 1:
-            # k > 1 implies negative samples are dropped.
-            # Number of negative samples to be dropped:
-            # (again assuming we are dropping negative samples)
-            n_neg_drop = n_samples * (1 - 1 / k)  # This when k >= 1.
+            # k > 1 implies negative observations are dropped.
+            # Number of negative observations to be dropped:
+            # (again assuming we are dropping negative observations)
+            n_neg_drop = n_observations * (1 - 1 / k)  # This when k >= 1.
             drop_rate = n_neg_drop / n_negatives
-            # Treated samples:
+            # Treated observations:
             tmp_pos_n = sum(self['training_set', 'treatment']['y'])
             tmp_n = len(self['training_set', 'treatment']['y'])
-            tmp_samples_to_drop = (tmp_n - tmp_pos_n) * drop_rate
-            k_t = (tmp_pos_n / (tmp_n - tmp_samples_to_drop)) / (tmp_pos_n / tmp_n)
-            # Control samples:
+            tmp_observations_to_drop = (tmp_n - tmp_pos_n) * drop_rate
+            k_t = (tmp_pos_n / (tmp_n - tmp_observations_to_drop)) / (tmp_pos_n / tmp_n)
+            # Control observations:
             tmp_pos_n = sum(self['training_set', 'control']['y'])
             tmp_n = len(self['training_set', 'control']['y'])
-            tmp_samples_to_drop = (tmp_n - tmp_pos_n) * drop_rate
-            k_c = (tmp_pos_n / (tmp_n - tmp_samples_to_drop)) / (tmp_pos_n / tmp_n)
+            tmp_observations_to_drop = (tmp_n - tmp_pos_n) * drop_rate
+            k_c = (tmp_pos_n / (tmp_n - tmp_observations_to_drop)) / (tmp_pos_n / tmp_n)
         elif 0 < k < 1:
             n_pos_drop = n_positives - k * n_positives * n_negatives /\
-                (n_samples - k * n_positives)
+                (n_observations - k * n_positives)
             drop_rate = n_pos_drop / n_positives
             print("n_pos_drop: {}".format(n_pos_drop))
-            print("n_samples: {}".format(n_samples))
+            print("n_observations: {}".format(n_observations))
             print("k: {}".format(k))
             print("n_positives: {}".format(n_positives))
             print("n_negatives: {}".format(n_negatives))
             print("Drop rate: {}".format(drop_rate))
-            # Treated samples:
+            # Treated observations:
             tmp_pos_n = sum(self['training_set', 'treatment']['y'])
             tmp_n = len(self['training_set', 'treatment']['y'])
-            tmp_samples_to_drop = tmp_pos_n * drop_rate
-            k_t = (tmp_pos_n - tmp_samples_to_drop) /\
-                (tmp_n - tmp_samples_to_drop) /\
+            tmp_observations_to_drop = tmp_pos_n * drop_rate
+            k_t = (tmp_pos_n - tmp_observations_to_drop) /\
+                (tmp_n - tmp_observations_to_drop) /\
                     (tmp_pos_n / tmp_n)
-            # Control samples:
+            # Control observations:
             tmp_pos_n = sum(self['training_set', 'control']['y'])
             tmp_n = len(self['training_set', 'control']['y'])
-            tmp_samples_to_drop = tmp_pos_n * drop_rate
-            k_c = (tmp_pos_n - tmp_samples_to_drop) /\
-                (tmp_n - tmp_samples_to_drop) /\
+            tmp_observations_to_drop = tmp_pos_n * drop_rate
+            k_c = (tmp_pos_n - tmp_observations_to_drop) /\
+                (tmp_n - tmp_observations_to_drop) /\
                     (tmp_pos_n / tmp_n)
         else:
             # Should never end up here.
@@ -912,7 +913,7 @@ class DatasetCollection(object):
          '1111' results in '1:1' and #positive and #negative in both groups to be
          equally large.
         args[2] = group {'all', 'treatment', 'control'}: 'all' and None both
-         return all data. 'treatment' returns samples that were treated etc.
+         return all data. 'treatment' returns observations that were treated etc.
 
         Returns
         -------
@@ -1080,26 +1081,27 @@ class DatasetWrapper(Dataset):
             return {'X': X, 'y': y, 'z': z, 't': t}
 
 
-# Get some data quickly:
-def get_criteo_test_data():
-    data = DatasetCollection("./datasets/criteo_100k.csv", CRITEO_FORMAT)
-    return data
-
-def get_hillstrom_data():
-    data = DatasetCollection("./datasets/" + HILLSTROM_FORMAT['file_name'],
-                             HILLSTROM_FORMAT)
-    return data
-
-def get_voter_data():
-    data = DatasetCollection('./datasets/' + VOTER_FORMAT['file_name'],
-                             VOTER_FORMAT)
-    return data
-
-def get_lenta_test_data():
-    data = DatasetCollection("./datasets/lenta_mini.csv", LENTA_FORMAT)
-    return data
-
-def get_starbucks_data():
-    data = DatasetCollection('./datasets/' + STARBUCKS_FORMAT['file_name'],
-                             STARBUCKS_FORMAT)
-    return data
+def quick_load(dataset='hillstrom'):
+    """
+    Method for quick loading some of the most commonly used datasets.
+    """
+    if dataset == 'hillstrom':
+        print("Loading the Hillstrom dataset.")
+        return DatasetCollection("./datasets/" + HILLSTROM_FORMAT['file_name'],
+                                HILLSTROM_FORMAT)
+    elif dataset == 'criteo':
+        print("Loading subset of the Criteo-dataset with 100k observations.")
+        return DatasetCollection("./datasets/criteo_100k.csv", CRITEO_FORMAT)
+    elif dataset == 'voter':
+        print("Loading the Voter-dataset.")
+        return DatasetCollection('./datasets/' + VOTER_FORMAT['file_name'],
+                                 VOTER_FORMAT)
+    elif dataset == 'lenta':
+        print("Loading mini-version of Lenta-dataset.")
+        return DatasetCollection("./datasets/lenta_mini.csv", LENTA_FORMAT)
+    elif dataset == 'starbucks':
+        print("Loading the Startbucks-dataset.")
+        return DatasetCollection('./datasets/' + STARBUCKS_FORMAT['file_name'],
+                                 STARBUCKS_FORMAT)
+    else:
+        print("Select dataset from options 'hillstrom', 'criteo', 'voter', and 'starbucks'.")
