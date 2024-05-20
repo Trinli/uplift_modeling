@@ -1047,7 +1047,7 @@ class UpliftDataset(object):
 
 class DatasetWrapper(Dataset):
     """
-    Class for wrapping datasets from class above into format accepted
+    Class for wrapping dataset subsets from UpliftDataset into format accepted
     by torch.utils.data.Dataloader.
 
     Parameters

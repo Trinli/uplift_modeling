@@ -1,20 +1,6 @@
 """
 Metrics for uplift-modeling.
 
-Currently contains:
--expected_conversion_rate(): expected conversion rate given treatment plan (scoring) and k (number
-of samples to be treated in the dataset)
--expected uplift(): the difference in conversion rates of two treatment plans (e.g.
- scoring and random)
--auuc_metric(): expected uplift some given treatment plan (scoring) and no prior
- preference on treatment/control split (a.k.a AUUC following Jaskowski &
- Jarosewicz 2012).
--plot_conversion_rates(): plots the conversion rate as function of fraction of
-samples treated.
--qini_coefficient(): estimates the qini-coefficient using Radcliffe's formulas
--kendalls_tau(): estimates Kendall's uplift tau, i.e. a rank correlation estimate
- between bin rank for uplift estimates and scores.
-
 Could be added:
 -conversion_r(): a function essentially estimating what k
  corresponds to a given r (and calling expected_conversion_rate)
@@ -29,6 +15,7 @@ Known issues:
  expected_conversion_rate() for small and large k. Currently we have set it to
  zero to match the approach by Diemert & al. but it is not particularly
  "correct."
+-The implementations of the qini-coefficient and Kendall's tau need to be tested.
 """
 
 
@@ -49,16 +36,35 @@ class UpliftMetrics():
     relating to tests and to automate parts of it. Initialization
     causes estimation of all metrics and self.save_to_csv() stores
     the metrics.
+    This method initiates a UpliftMetric object and estimates
+    a number of useful metrics given the data.
 
-    Attributes:
-    algorithm (str): type of algorithm, e.g. 'double-classifier with lr'
-    dataset (str): dataset used to obtain model and metrics
-    THIS IS STILL WORK IN PROGRESS!
-
-    Methods:
-    __init__: Self-explanatory
-    print_: Prints to screen in a predefined format
-    write_to_csv: saves results with metadata to some predefined file
+    Parameters
+    ----------
+    data_class : np.array([bool])
+        Array of class labels for samples.
+    data_prob : np.array([float]) 
+        Array of uplift predictions as probabilities for samples. 
+        Can also be replaced with data_score, but metrics 
+        relying on probabilitise will be way off.
+    data_group : np.array([bool])
+        Array of group labels for samples. True indicates that 
+        observation belongs to the treatment group.
+    test_name : str
+        Will be written to the result file when write_to_csv() is called.
+    test_description : str
+        Will be written to the result file when write_to_csv() is called.
+    algorithm : str
+        type of algorithm, e.g. 'double-classifier with lr'
+    dataset : str
+        dataset used to obtain model and metrics
+    parameters : str?
+        Will be stored.
+    estimate_qini : bool
+        Decided whether the qini-coefficient is estimated.
+    k : int  - maybe replace by "bins"? "n_bins"?
+        k to use for estimation of expected uplift calibration
+        error. The same k is also used for Kendall's uplift tau.
     """
 
     def __init__(self, data_class, data_prob, data_group,
@@ -68,19 +74,7 @@ class UpliftMetrics():
                  parameters=None,
                  estimate_qini=False,
                  k=100):
-        """This method initiates a UpliftMetric object and estimates
-        a number of useful metrics given the data.
-
-        Args:
-        data_class (np.array([bool])): Array of class labels for samples.
-        data_prob (np.array([float])): Array of uplift predictions as
-         probabilities for samples. Can also be replaced with data_score,
-         but metrics relying on probabilitise will be way off.
-        data_group (np.array([bool])): Array of group labels for samples.
-        True indicates that sample belongs to the treatment group.
-        k (int): k to use for estimation of expected uplift calibration
-         error. The same k is also used for Kendall's uplift tau.
-
+        """
         Attributes:
         e_r_conversion_rate: Expected uplift given no prior preference on
          treatment rate.

@@ -13,7 +13,7 @@ import random
 import uplift_modeling.data.load_data as load_data
 
 
-CRITEO_FORMAT = load_data.DATA_FORMAT
+CRITEO_FORMAT = load_data.CRITEO_FORMAT
 # CRITEO_FORMAT['file_name'] = 'criteo_100k.csv'  # This is for testing.
 CRITEO_FORMAT['file_name'] = 'criteo-uplift.csv'  # This is the actual experiment.
 # CRITEO_FORMAT['y_idx'] = 14  # for the "visit" label. Using 'conversion' (13) by default.
@@ -37,7 +37,7 @@ def create_pickles(path='./datasets/'):
         seed = random.randrange(2**32 - 1)
         dataset['random_seed'] = seed
         # Load data and do preprocessing:
-        data = load_data.DatasetCollection(path + dataset['file_name'],
+        data = load_data.UpliftDataset(path + dataset['file_name'],
                                            dataset)
         # Write as pickle to disk:
         with gzip.open(path + dataset['file_name'] + str(seed) + '.gz',
@@ -53,7 +53,7 @@ def load_pickle(file_name, path='./datasets/'):
     file_name (str): Name of file
     path (str): Location of file
     """
-    from data.load_data import DatasetCollection
+    from uplift_modeling.data.load_data import UpliftDataset
     # Do gzip version
     fp = gzip.open(path + file_name, 'rb') if file_name.endswith(".gz") else open(path + file_name, 'rb')
     data = pickle.load(fp)
