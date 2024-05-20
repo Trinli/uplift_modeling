@@ -810,17 +810,24 @@ class DatasetCollection(object):
 
     def naive_undersampling(self, k):
         """
-        Naive version of undersampling where negative (majority class) observations
-        are dropped from both treated and control observations with equal probability.
+        Naive version of undersampling dropping either negative or positive
+        observations from the treated and untreated subsets of the training
+        set with equal probability so that :math:`p(y=1) = k \cdot p^*(y=1)`
+        where :math:`p^*(y=1)` is the positive rate after undersampling.
         This is the original implementation from Nyberg & Klami (2021).
 
         Parameters
         ----------
         k : float
             Undersampling factor. In ]0, inf], although upper boundary naturally comes
-            from number of observations that can be dropped before dropping _all_ majority
+            from number of observations that can be dropped before dropping *all* majority
             class observations. k > 1 will lead to negative observations being dropped and k < 1
-            to positive ones being dropped so that p(y=1) = k * \tilde{p}(y=1).
+            to positive ones being dropped.
+
+        Returns
+        -------
+        dict
+            A dictionary with the subsetted data with keys 'X', 'y', 't', 'z', 'r'.
         """
         # 1. Estimate what k_t and k_c values a common k would correspond to 
         # 2. Call split_undersampling.
