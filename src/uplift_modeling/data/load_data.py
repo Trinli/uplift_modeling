@@ -1048,12 +1048,15 @@ class DatasetWrapper(Dataset):
     """
     Class for wrapping datasets from class above into format accepted
     by torch.utils.data.Dataloader.
+
+    Parameters
+    ----------
+    data : dict
+        Dictionary with 'X', 'y', 'z', 't', and in some cases 'r'.
+        E.g. ``tmp_data['training_set']``.
     """
     def __init__(self, data):
         """
-        Args:
-        data (dict): Dictionary with 'X', 'y', 'z', 't', and in
-         some cases 'r'.
         """
         self.data = data
 
@@ -1066,10 +1069,8 @@ class DatasetWrapper(Dataset):
         # won't work if not X, y, z, and t are provided.
         X = self.data['X'][idx, :]
         y = self.data['y'][idx].astype(np.float64)
-        if 'z' in self.data.keys():
-            z = self.data['z'][idx].astype(np.float64)
-        if 't' in self.data.keys():
-            t = self.data['t'][idx].astype(np.float64)
+        z = self.data['z'][idx].astype(np.float64)
+        t = self.data['t'][idx].astype(np.float64)
         if 'r' in self.data.keys():
             r = self.data['r'][idx].astype(np.float64)
             return {'X': X, 'y': y, 'z': z, 't': t, 'r': r}
