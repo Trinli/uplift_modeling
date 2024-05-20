@@ -1356,6 +1356,135 @@ def test_for_differences_in_mean(N_t1, N_c1,
     return prob
 
 
+def beta_difference_uncertainty(alpha1, beta1, alpha0, beta0,
+                     prior_a1=1, prior_b1=1,
+                     prior_a0=1, prior_b0=1,
+                     N=100000,
+                     p_mass=0.95):
+    """
+    This is a Monte Carlo (MC) approach to estimating
+    uncertainty of a beta-difference distribution
+    (Pham-Gia & Turkkan, 1993). The uncertainty is
+    quantified as the highest posterior density credible
+    interval (HPD-inverval). 
+
+    The beta-difference distribution is equivalent to
+    the uncertainty distribution of the difference between
+    two Bernoulli-distributed variables. In the case of 
+    uplift this corresponds to alpha1 and beta1 for
+    :math:`p(y=1|x, do(t=1))` and alpha0 and beta 0 for
+    :math:`p(y=1|x, do(t=0))`.
+
+    Parameters
+    ----------
+    alpha1 : float 
+        Alpha for distribution of :math:`p(y=1|x, do(t=1))`
+    beta1 : float 
+        Beta for distribution of :math:`p(y=1|x, do(t=1))`
+    alpha0 : float
+        Alpha for distribution of :math:`p(y=1|x, do(t=0))`
+    beta0 : float 
+        Beta for distribution of :math:`p(y=1|x, do(t=0))`
+    prior_a1 : float 
+        Prior for alpha1
+    etc.
+    N : int
+        Number of observations to draw. Should probably be at least 10,000.
+    p_mass : float
+        In [0, 1]. The probability mass required inside of
+        the interval.
+    """
+    # Draw samples from distribution
+    p_t1 = beta.rvs(alpha1 + prior_a1, beta1 + prior_b1, size=N)
+    p_t0 = beta.rvs(alpha0 + prior_a0, beta0 + prior_b0, size=N)
+    tau = p_t1 - p_t0
+    # Estimate HPD (95%).
+    # If we defined the CDF as sum_i^j(tau_i) for
+    # i <= j and j \in {0:N}, then we can on the ordered
+    # observations do a simple search over all applicable
+    # intervals and pick the shortest one. The number of
+    # observations in one interval is
+    # simply p * N where a typical
+    # value for p would be 0.95.
+    # 1. Sort tau in increasing order
+    tau = np.sort(tau)
+    # 2. Calculate window size N_{1-alpha}
+    N = len(tau)
+    n_interval = int(N * p_mass)
+    lower_idx = 0
+    upper_idx = n_interval
+    # 3. Estimate width of sliding window
+    smallest_width = np.inf
+    while upper_idx < N:
+        # We are only looking for any interval that
+        # contains at least 95% of the observations. Any sliding window
+        # containing this will do. If they additionally contain other
+        # observations, that is fine.
+        tmp_width = tau[upper_idx] - tau[lower_idx]
+        if tmp_width < smallest_width:
+            # Store results:
+            # What is this has not been accessed at all? Should not be possible...
+            smallest_width = tmp_width
+            smallest_low_idx = lower_idx
+            smallest_up_idx = upper_idx
+        lower_idx += 1
+        upper_idx += 1
+    # 4. Pick narrowest.
+    return {'width': smallest_width, 
+            'lower_bound': tau[smallest_low_idx],
+            'upper_bound': tau[smallest_up_idx]}  # This is not always set (?!?)
+
+
+def test_for_beta_difference(alpha11, beta11, alpha12, beta12,
+                             alpha21, beta21, alpha22, beta22,
+                             prior_a11=1, prior_b11=1,
+                             prior_a12=1, prior_b12=1,
+                             prior_a21=1, prior_b21=1,
+                             prior_a22=1, prior_b22=1,
+                             N=100000):
+    """
+    Bayesian estimate for :math:`p(\tau(x_1)) > p(\tau(x_2))`,
+    i.e. the probability that one uplift estimate is greater
+    than the other. This is based on the assumption that the
+    uncertainty of the uplift follows a beta-difference
+    distribution (Pham-Gia & Turkkan, 1993).
+
+    This is equivalent to assuming that conversion probabilities used 
+    to estimate uplift are Bernoulli-distributed and that the parameters 
+    for these follow Beta-distributions.
+
+    Parameters
+    ----------
+    alpha11 : float
+        Alpha for p(y=1|x, t=1) for tau_1
+    beta11 : float
+        Beta for p(y=1|x, t=1) for tau_1
+    alpha12 : float
+        alpha for p(y=1|x, t=0) for tau_1
+    beta12 : float
+        beta for p(y=1|x, t=0) for tau_1
+    alpha21 : float
+        alpha for p(y=1|x, t=1) for tau_2
+    etc.
+    prior_a11 : float 
+        Alpha prior for p(y=1|x, t=1) for tau_1
+    etc.
+    N : int 
+        Number of observations to draw. Should probably be at least 10,000.
+    """
+    p_t11 = beta.rvs(alpha11 + prior_a11, beta11 + prior_b11, size=N)
+    p_t10 = beta.rvs(alpha12 + prior_a12, beta12 + prior_b12, size=N)
+    tau_1 = p_t11 - p_t10
+    p_t21 = beta.rvs(alpha21 + prior_a21, beta21 + prior_b21, size=N)
+    p_t20 = beta.rvs(alpha22 + prior_a22, beta22 + prior_b22, size=N)
+    tau_2 = p_t21 - p_t20
+
+    # Probability that tau_1 > tau_2:
+    n_pos = sum(tau_1 > tau_2)
+    prob = n_pos / N
+    return prob
+
+
 @jit(nopython=True)
 def _euce_points(data_class, data_prob, data_group,
                  k=100):
