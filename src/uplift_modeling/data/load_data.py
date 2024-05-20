@@ -421,12 +421,12 @@ class DatasetCollection(object):
             # Subsampled training set with 1:1 ratio of treated and untreated observations.
             # Useful for class-variable transformation.
             tmp = self._subsample_one_to_one('training_set')
-            self.datasets.update({'training_set_11': tmp})
+            self.datasets.update({'training_set_1:1': tmp})
             # if 'training_set_2' in self.datasets.keys():
             #     # I see no use for this.
             #     # Add this only if the second training set split is in use:
             #     tmp = self._subsample_one_to_one('training_set_2')
-            #     self.datasets.update({'training_set_2_11': tmp})
+            #     self.datasets.update({'training_set_2_1:1': tmp})
         elif mode == 'two_validation_sets':
             # Add also slightly different split that enables early stopping of
             # neural networks using separate validation set.
@@ -582,6 +582,11 @@ class DatasetCollection(object):
             '1:1' indicates that there should be equally many treatment and
             control observations. This is useful with CVT and enforces
             :math:`p(t=0) = p(t=1)`.
+
+        Returns
+        -------
+        dict
+            A dict with the subsetted training set with customary keys.
         """
         # Number of positives in treatment group:
         t_data = self['training_set', 'treatment']
@@ -671,11 +676,11 @@ class DatasetCollection(object):
                             seed=None, target_set='training_set'):
         """
         Method to undersample the training set. The undersampling 
-        is performed so that p(y=1) in the original data equals 
-        p(y=1) / k_t (or k_c) in the undersampled data for treated 
+        is performed so that :math:`p(y=1)` in the original data equals 
+        :math:`p(y=1) / k_t` (or :math:`k_c`) in the undersampled data for treated 
         and control samples separately. If k_c is not provided,
-        and group_sampling is set to '11', the behavior is
-        identical to k_undersampling save for randomization.
+        and group_sampling is set to '1:1', the behavior is
+        identical to k_undersampling.
         This is the original implementation for split undersampling
         from Nyberg & Klami 2023.
 
@@ -689,7 +694,7 @@ class DatasetCollection(object):
             Gets value k_t unless k_c is specified. I that case
             it works like k_undersampling.
         group_sampling : str 
-            If set to '11' there will be equally many
+            If set to '1:1' there will be equally many
             treatment and control samples.
         seed : int 
             Random seed for numpy. If set to None, random seed is
@@ -765,7 +770,7 @@ class DatasetCollection(object):
 
         # Change number of samples to be picked in treatment or control group to
         # make num_tot_t == num_tot_c:
-        if group_sampling == '11':
+        if group_sampling == '1:1':
             num_tot_c_new = num_neg_c_new + num_pos_c_new
             num_tot_t_new = num_neg_t_new + num_pos_t_new
             if num_tot_c_new > num_tot_t_new:
@@ -904,9 +909,9 @@ class DatasetCollection(object):
             observations is 1:1.
 
 
-        args[1] = undersampling {None, '11', '1111'}: None causes no undersampling
-         at all, '11' results in treatment and control groups being equally large,
-         '1111' results in '11' and #positive and #negative in both groups to be
+        args[1] = undersampling {None, '1:1', '1111'}: None causes no undersampling
+         at all, '1:1' results in treatment and control groups being equally large,
+         '1111' results in '1:1' and #positive and #negative in both groups to be
          equally large.
         args[2] = group {'all', 'treatment', 'control'}: 'all' and None both
          return all data. 'treatment' returns samples that were treated etc.
@@ -939,10 +944,10 @@ class DatasetCollection(object):
                         # observations is 1:1.
                         # Check existence:
                         if target_set == 'training_set':
-                            if target_set + '11' not in self.datasets.keys():
+                            if target_set + '1:1' not in self.datasets.keys():
                                 # If it does not exist, create it.
                                 self._create_subsets(mode='one_to_one')
-                                target_set = target_set + '_11'
+                                target_set = target_set + '_1:1'
                         else:
                             raise Exception("One-to-one subsampled dataset only available for training set.")
                             print("Currently no undersampled datasets for other " +
@@ -1015,7 +1020,7 @@ class DatasetCollection(object):
         Method to reduce the size of the training and validation
         sets while otherwise maintaining their properties. This
         is accomplished simply by random subsampling. This 
-        OVERWRITES the training and validation sets in the object!
+        **overwrites** the training and validation sets in the object!
         Can be used to e.g. test performance of models with different
         training set size and is compatible with the DatsetWrapper-
         class.
