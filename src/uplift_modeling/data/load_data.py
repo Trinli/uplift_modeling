@@ -3,10 +3,9 @@ Class for handling datasets for uplift experiments and
 one class to wrap this class in torch-compatible format.
 
 Development ideas:
--Support for ordinal variables could perhaps be added.
--Support for continuous dependent variables could perhaps 
-be added following the same logic used with treatment labels.
--Perhaps expand the documentation for the data format.
+-Support for ordinal features could perhaps be added.
+-Support for continuous dependent variables could perhaps. This is
+incompatible with CVT, though.
 -Data loading could be made more efficient by discarding observations not belonging
 to either treatment group up front and by handling data one observation at a time
 rather than reading in all data and handling one feature at a time.
@@ -14,14 +13,13 @@ Features cannot be normalized before everything is in memory, but at least
 we could reduce the needed memory from 2ND to ND + D or even go as low as ND + 1.
 This matters with large datasets. Alternatively use some serialized format
 for quick access after preprocessing the dataset once.
--Maybe change "11" or "1:1" to "one_to_one".
--Change getter signature from data['training_set', None, 'treatment'] to maybe 
-data['training_set'], data['training_set', 'treatment'], and 
-data['training_set', 'treatment', 'one_to_one']?
 -Move DATA_FORMAT and easy access to separate file? Maybe keep it here.
--Implement quick-access functions for the most common datasets.
--Add support to download datasets if not present locally.
+--Implement quick-access functions for the most common datasets.
+--Add support to download datasets if not present locally.
 -Check whether the LENTA_FORMAT is correct. It probably is not.
+-Pytorch dataloaders could also be stored in this object in a dict
+in a similar way subsets are stored now.
+-This class stores both the original dataset and the subsets. Memory usage?
 """
 
 import csv
@@ -189,18 +187,27 @@ LENTA_FORMAT = {'file_name': 'lenta_dataset.csv',
 
 class DatasetCollection(object):
     """
-    Class for loading datasets from csv-files and pre-processing
-    them for model development. The pre-processing includes
-    normalization, dummy-coding for categorical features, preparation
-    of variable transformations, and subsampling into training, validation,
-    and testing sets.
-    The class also includes getters and setters and methods for
-    subsetting and undersampling the data.
+    Class for handling datasets for uplift modeling.
+    This class provides easy access to the features, variables,
+    and variable transformations of a dataset, and easy subsetting
+    into relevant subsets for uplift modeling.
+
+    At initialization, the class loads a dataset from a csv-file, preprocesses
+    it (normalization, one-hot encoding, variable transformations), and
+    subsamples the dataset into training, validation, and testing sets.
+
+    This class contains **many undersampling methods,** including k-undersampling from Nyberg &
+    Klami (2021), split undersampling from Nyberg & Klami (2023), and naive undersampling
+    from Nyberg & Klami (2021) (undoing the effects of undersampling, i.e.
+    calibration of the uplift predictions, needs to be done separately).
+    There is also a method for reducing the dataset size
+    by random sampling that overwrites the training and validation set in the object.
+    This can be useful to study performance of a model over dataset size.
 
     Parameters
     ----------
     file_name : str
-        Name of the csv-file containint the dataset with relative or absolute path.
+        Name of the csv-file containing the dataset with relative or absolute path.
     data_format : dict
         A dictionary containing necessary details of the dataset. See example below
         for the Voter-dataset (Gerber, Green, & Larimer, 2008).
@@ -225,36 +232,25 @@ class DatasetCollection(object):
         'headers': True,  # 'True' drops a header row from the data.
         'data_type': 'float32'}  # Data will be set to this type.
     
-    Getters and Setters
-    -------------------
-    The features can be accessed with ``tmp_data['X']``, the treatment labels with
-    ``tmp_data['t']``, the dependent variable with ``tmp_data['y']``, the class-variable
-    transformation with ``tmp_data['z']`` (Jaskowski & Jaroszewicz, 2012), and the
-    outcome-transformation label with ``tmp_data['r']`` (Athey & Imbens, 2016). Note
-    that the CVT-transformation ``'z'`` does not automatically subsample the observations so
-    that there are equally many treated and untreated observations. This can be done with
-    the '1:1'-flag.
+    Accessing the data
+    ------
+    The features of the training set can be accessed with ``tmp_data['training_set']['X']``,
+    the treatment labels with ``tmp_data['training_set']['t']``, the dependent variable with
+    ``tmp_data['training_set']['y']``, the class-variable transformation with 
+    ``tmp_data['training_set']['z']`` (Jaskowski & Jaroszewicz, 2012), and the
+    outcome-transformation label with ``tmp_data['training_set']['r']`` (Athey & Imbens, 2016). 
 
-    Specific subsets can be accessed with the keys ``'training_set'``, 
-    ``'validation_set'``, and ``'testing_set'`` for selected subsamples. E.g. 
-    ``tmp_data['training_set']['X']`` for the features of the training set.
-
-    The subset of treated or untreated observations can be accessed with ... what?
-    Currently with tmp_data['training_set', None, 'treatment']['X']...
-    or tmp_data['training_set', '1:1', 'treatment']['X'] to subsample the data so
-    that the ratio of treated and untreated observations is 1:1.
-
-    Methods
-    -------
-    CVT-balancing, undersampling.
-
-    Notes and change plans:
-    _______________________
-    Pytorch dataloaders could also be stored in this object in a dict
-    in a similar way subsets are stored now.
-    Create certain subsets only when requested.
-    Add automated dataloading from online resources if datasets not found ("Download dataet?[y/n]").
-    Add "quick access" for handful of datasets.
+    Three subsets are prepared at initialization: the ``'training_set'``, the ``'validation_set'``,
+    and the ``'testing_set'``. These can be accessed following the pattern above. In addition,
+    the treated and untreated observations can be accessed with 
+    ``tmp_data['testing_set', 'treatment']['X']`` and 
+    ``tmp_data['validation_set', 'control']['X']``.
+    
+    Note that the CVT-transformation ``'z'`` does not automatically subsample the observations
+    so that there are equally many treated and untreated observations. CVT requires that
+    p(t=1) = p(t=0). This can be implemented by weighting, or by subsampling. The subsampling
+    is implemented in this class and can be accessed with the ``'one_to_one'``-flag, e.g.
+    ``tmp_data['training_set', 'all', 'one_to_one']['X']``.
     """
     def __init__(self, file_name, data_format):
         self.file_name = file_name
@@ -395,7 +391,6 @@ class DatasetCollection(object):
         self.y = self.y[shuffling_idx]
         self.t = self.t[shuffling_idx]
         self.z = self.z[shuffling_idx]
-        # self.r does not exist at this point yet.
         self.r = self.r[shuffling_idx]
 
     def _create_subsets(self, mode='basic'):
@@ -469,12 +464,20 @@ class DatasetCollection(object):
 
     def add_set(self, name, start_idx, stop_idx):
         """
-        Auxiliary function for _create_subsets(). Adds usable datasets as dicts
-        with X, y, t, and z. 'z' here refers to class-variable transformation
-        following Jaskowski & Jaroszewicz (2012).
-        Note that this DOES NOT ENSURE p(t=1) = p(t=0), i.e. that there are equally
-        many treatement and control observations. This is required for CVT, hence
-        it needs to be handled elsewhere.
+        This method adds a subset of the entire dataset to the object as
+        a subset to be accessed with the name specified, e.g. 
+        ``tmp_data['calibration_set']['X']`` if the name was set to
+        ``'calibration_set'``.
+
+        Parameters
+        ----------
+        name : str
+            Name of the subset. The dataset can later be accessed using this key.
+        start_idx : int
+            Index of the first observation to be included in the subset. start_idx 
+            and stop_idx together defines a range.
+        stop_idx : Index of the first observation to **not be included** in the
+            the subset.
         """
         X_tmp = self.X[start_idx:stop_idx, :]
         y_tmp = self.y[start_idx:stop_idx]
@@ -666,8 +669,8 @@ class DatasetCollection(object):
         return {'X': tmp_X, 'y': tmp_y, 'z': tmp_z, 't': tmp_t, 'r': tmp_r}
 
 
-    def undersampling(self, k_t, k_c=None, group_sampling=None,
-                      seed=None, target_set='training_set'):
+    def split_undersampling(self, k_t, k_c=None, group_sampling=None,
+                            seed=None, target_set='training_set'):
         """
         Method to undersample the training set. The undersampling 
         is performed so that p(y=1) in the original data equals 
@@ -872,7 +875,7 @@ class DatasetCollection(object):
         else:
             # Should never end up here.
             raise ValueError("k not valid.")
-        return self.undersampling(k_t=k_t, k_c=k_c)
+        return self.split_undersampling(k_t=k_t, k_c=k_c)
 
 
     def __getitem__(self, *args):
