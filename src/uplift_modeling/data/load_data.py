@@ -562,23 +562,20 @@ class DatasetCollection(object):
         """
         Method returns a training set where the rate of positive observations
         is changed by a factor of k by either reducing the number of
-        negative observations or increasing the number of positive observations.
-        The method also changes the sampling rate of treatment vs. control
-        observations to 1:1. This is suitable for class-variable transformation.
+        negative observations (k>1) or reducing the number of positive 
+        observations (k<1).
+        The method can also change the sampling rate of treatment vs. control
+        observations to 1:1, if desired.
         This is the original implementation of k-undersampling by
         Nyberg & Klami 2021.
 
-        If k is very large the number of negative observations might drop to zero,
-        or conversely if k is very small the number of positive observations might
-        drop to zero. There is not a check for this.
-
-        Parameters:
-        -----------
-        k : int 
+        Parameters
+        ----------
+        k : int
             This number will determine the change in positive rate in the data.
-        group_sampling : str 
+        group_sampling : str
             'natural' implies no change in group sampling rate, i.e. the number
-            of observations in the treatment and control groups stay constant. 
+            of observations in the treatment and control groups stay constant.
             '1:1' indicates that there should be equally many treatment and
             control observations. This is useful with CVT and enforces
             p(t=0) = p(t=1)).
