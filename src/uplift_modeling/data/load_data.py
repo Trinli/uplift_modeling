@@ -249,8 +249,8 @@ class DatasetCollection(object):
     Note that the CVT-transformation ``'z'`` does not automatically subsample the observations
     so that there are equally many treated and untreated observations. CVT requires that
     p(t=1) = p(t=0). This can be implemented by weighting, or by subsampling. The subsampling
-    is implemented in this class and can be accessed with the ``'one_to_one'``-flag, e.g.
-    ``tmp_data['training_set', 'all', 'one_to_one']['X']``.
+    is implemented in this class and can be accessed with the ``'1:1'``-flag, e.g.
+    ``tmp_data['training_set', 'all', '1:1']['X']``.
     """
     def __init__(self, file_name, data_format):
         self.file_name = file_name
@@ -417,7 +417,7 @@ class DatasetCollection(object):
             self.add_set('training_set', 0, n_samples // 2)
             self.add_set('validation_set', n_samples // 2, n_samples * 3 // 4)
             self.add_set('testing_set', n_samples * 3 // 4, n_samples)
-        elif mode == 'one_to_one':
+        elif mode == '1:1':
             # Subsampled training set with 1:1 ratio of treated and untreated observations.
             # Useful for class-variable transformation.
             tmp = self._subsample_one_to_one('training_set')
@@ -675,14 +675,13 @@ class DatasetCollection(object):
     def split_undersampling(self, k_t, k_c=None, group_sampling=None,
                             seed=None, target_set='training_set'):
         """
-        Method to undersample the training set. The undersampling 
-        is performed so that :math:`p(y=1)` in the original data equals 
-        :math:`p(y=1) / k_t` (or :math:`k_c`) in the undersampled data for treated 
-        and control samples separately. If k_c is not provided,
+        Method to undersample selected set. The undersampling 
+        is performed so that :math:`p(y=1|t=1) = p^*(y=1|t=1) / k_t` (or 
+        :math:`k_c`) where :math:`p^*(y=1|t)` is the positive rate
+        in the undersampled data. If k_c is not provided,
         and group_sampling is set to '1:1', the behavior is
-        identical to k_undersampling.
-        This is the original implementation for split undersampling
-        from Nyberg & Klami 2023.
+        identical to k_undersampling. This is the original implementation
+        for split undersampling from Nyberg & Klami 2023.
 
         Parameters
         -----------
@@ -706,8 +705,7 @@ class DatasetCollection(object):
         Returns
         -------
         dict
-            Data undersampled with desired properties is returned in a
-            dict with keys 'X', 'y', 't', 'z', and 'r'.
+            Undersampled data is returned in a dict with keys 'X', 'y', 't', 'z', and 'r'.
         """
         if k_c is None:
             # Use same k for both treated and control samples.
@@ -904,7 +902,7 @@ class DatasetCollection(object):
             all, treated, or untreated ("control") observations. Leaving
             it empty will behave same as 'all'.
         args[2] : str
-            Optional. If set to 'one_to_one', the getter will return data
+            Optional. If set to '1:1', the getter will return data
             subsetted so that the ratio between treated and untreated
             observations is 1:1.
 
@@ -924,7 +922,7 @@ class DatasetCollection(object):
         Notes
         -Fix overall structure.
         -Must check for 
-        -If 'one_to_one' dataset does not exist in self.datasets.keys(), create
+        -If '1:1' dataset does not exist in self.datasets.keys(), create
          the dataset.
         """
         # Handle input arguments:
@@ -939,14 +937,14 @@ class DatasetCollection(object):
                 group = args[0][1]
                 if len(args[0]) > 2:  # There are still arguments left
                     one_to_one = args[0][2]
-                    if one_to_one == 'one_to_one':
+                    if one_to_one == '1:1':
                         # A subset is requested where the ratio between treated and untreated
                         # observations is 1:1.
                         # Check existence:
                         if target_set == 'training_set':
                             if target_set + '1:1' not in self.datasets.keys():
                                 # If it does not exist, create it.
-                                self._create_subsets(mode='one_to_one')
+                                self._create_subsets(mode='1:1')
                                 target_set = target_set + '_1:1'
                         else:
                             raise Exception("One-to-one subsampled dataset only available for training set.")
