@@ -561,11 +561,14 @@ class DatasetCollection(object):
     def k_undersampling(self, k, group_sampling='natural'):
         """
         Method returns a training set where the rate of positive observations
-        is changed by a factor of k by either reducing the number of
+        is changed by a factor of k within both the treated and the untreated
+        subsets so that :math:`p^*(y=1|t=1) = k \cdot p(y=1|t=1)` and 
+        :math:`p^*(y=1|t=0) = k \cdot p(y=1|t=0)` where :math:`p^*(y=1|t)` is the positive rate
+        after undersmapling by either reducing the number of
         negative observations (k>1) or reducing the number of positive 
         observations (k<1).
         The method can also change the sampling rate of treatment vs. control
-        observations to 1:1, if desired.
+        observations to 1:1.
         This is the original implementation of k-undersampling by
         Nyberg & Klami 2021.
 
@@ -578,7 +581,7 @@ class DatasetCollection(object):
             of observations in the treatment and control groups stay constant.
             '1:1' indicates that there should be equally many treatment and
             control observations. This is useful with CVT and enforces
-            p(t=0) = p(t=1)).
+            :math:`p(t=0) = p(t=1)`.
         """
         # Number of positives in treatment group:
         t_data = self['training_set', 'treatment']
@@ -809,18 +812,18 @@ class DatasetCollection(object):
         """
         Naive version of undersampling where negative (majority class) observations
         are dropped from both treated and control observations with equal probability.
-        Using 'k' here instead of e.g. 'p' as undersampling factor to keep
-        similarity to other undersampling methods. This is the original 
-        implementation from Nyberg & Klami (2021).
+        This is the original implementation from Nyberg & Klami (2021).
 
         Parameters
         ----------
-        k : float 
-            Undersampling factor. In ]0, inf], although upper boundary comes
+        k : float
+            Undersampling factor. In ]0, inf], although upper boundary naturally comes
             from number of observations that can be dropped before dropping _all_ majority
             class observations. k > 1 will lead to negative observations being dropped and k < 1
             to positive ones being dropped so that p(y=1) = k * \tilde{p}(y=1).
         """
+        # 1. Estimate what k_t and k_c values a common k would correspond to 
+        # 2. Call split_undersampling.
         n_samples = len(self['training_set', 'all']['y'])
         n_positives = sum(self['training_set', 'all']['y'])
         n_negatives = n_samples - n_positives
