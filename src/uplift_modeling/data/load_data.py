@@ -463,16 +463,16 @@ class DatasetCollection(object):
         r_vec = r_vec.astype(self.data_format['data_type'])
         return r_vec
 
-    def add_set(self, name, start_idx, stop_idx):
+    def add_set(self, target_set, start_idx, stop_idx):
         """
         This method adds a subset of the entire dataset to the object as
-        a subset to be accessed with the name specified, e.g. 
-        ``tmp_data['calibration_set']['X']`` if the name was set to
+        a subset to be accessed with the name specified in ``target_set``, e.g. 
+        ``tmp_data['calibration_set']['X']`` if the target_set was set to
         ``'calibration_set'``.
 
         Parameters
         ----------
-        name : str
+        target_set : str
             Name of the subset. The dataset can later be accessed using this key.
         start_idx : int
             Index of the first observation to be included in the subset. start_idx 
@@ -485,7 +485,7 @@ class DatasetCollection(object):
         t_tmp = self.t[start_idx:stop_idx]
         z_tmp = y_tmp == t_tmp
         r_tmp = self._revert_label(y_tmp, t_tmp)
-        self.datasets.update({name: {'X': X_tmp,
+        self.datasets.update({target_set: {'X': X_tmp,
                                      'y': y_tmp,
                                      't': t_tmp,
                                      'z': z_tmp,
@@ -895,7 +895,7 @@ class DatasetCollection(object):
         Parameters
         ----------
         args[0] : str
-            name of key in self.datasets to access, e.g. 'training_set',
+            target_set in self.datasets to access, e.g. 'training_set',
             'validation_set', or 'testing_set'. Any name of a subset
             added to self.dataset-dict is valid.
         args[1] : str
