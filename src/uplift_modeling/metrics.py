@@ -1,11 +1,15 @@
 """
-Metrics for uplift-modeling.
+This module contains the most common uplift metrics and a few statistical
+tests.
+All uplift metrics are estimated by the UpliftMetrics class that efficiently
+estimates them with one method call (initialization).
+The class also contains a method for writing the results to a 
+csv-file.
+
+Also a few Bayesian statistical tests for uplift based on the
+beta-difference distribution.
 
 Could be added:
--conversion_r(): a function essentially estimating what k
- corresponds to a given r (and calling expected_conversion_rate)
--conversion_s(): a function estimating what k corresponds
- to a given score threshold (and calling expected_conversion_rate)
 -conversion_for_fixed_plan(): instead of taking scoring
  and k, just using a binary vector for estimation.
 -uplift_by_gross() implementing the special case defined by Gross & Tibshirani (2016?)
@@ -15,16 +19,22 @@ Known issues:
  expected_conversion_rate() for small and large k. Currently we have set it to
  zero to match the approach by Diemert & al. but it is not particularly
  "correct."
--The implementations of the qini-coefficient and Kendall's tau need to be tested.
-"""
+-Check the implementations of the qini-coefficient and Kendall's tau.
+--Handles tie handling. Numba fix included.
 
+ToDo
+Clean up the documentation abilities of write_to_csv(). There are a lot of
+options right now. Maybe.
+-By passing the UpliftDataset-object, the metrics class could automatically
+pick relevant info to save with the experiment. Data file name, training set size,
+testing and validation set size? Could do something similar with the models.
+"""
 
 import csv
 from datetime import datetime
 import warnings
 from numba import jit
 import numpy as np
-import matplotlib.pyplot as plt
 from pathlib import Path
 from scipy.stats import beta
 
@@ -32,12 +42,10 @@ from scipy.stats import beta
 class UpliftMetrics():
     """
     Class for a collection of metrics relating to uplift modeling.
-    The main purpose of this class is to better keep track of metrics
-    relating to tests and to automate parts of it. Initialization
-    causes estimation of all metrics and self.save_to_csv() stores
-    the metrics.
-    This method initiates a UpliftMetric object and estimates
-    a number of useful metrics given the data.
+    The main purpose of this class is to keep track of metrics
+    and document the results together with appropriate test
+    descriptions. Initialization causes estimation of all metrics
+    and self.save_to_csv() stores the metrics.
 
     Parameters
     ----------
@@ -62,59 +70,18 @@ class UpliftMetrics():
         Will be stored.
     estimate_qini : bool
         Decided whether the qini-coefficient is estimated.
-    k : int  - maybe replace by "bins"? "n_bins"?
-        k to use for estimation of expected uplift calibration
-        error. The same k is also used for Kendall's uplift tau.
+    n_bins : int
+        Number of bins used for estimation of expected uplift calibration
+        error and Kendall's tau. Sometimes this is referred to as 'k'.
     """
-
     def __init__(self, data_class, data_prob, data_group,
                  test_name=None, test_description=None,
                  algorithm=None,
                  dataset=None,
                  parameters=None,
                  estimate_qini=False,
-                 k=100):
-        """
-        Attributes:
-        e_r_conversion_rate: Expected uplift given no prior preference on
-         treatment rate.
-        auuc: Area under the uplift curve following Jaskowski & Jarosewicz
-         2012. This is the expected value of conversion rate given no prior
-         preference on fraction of samples to be treated (i.e. it is an integral
-         over the treatment rate). Note that Jaskowski & Jarosewicz were
-         not talking about expected values, but their formulas result in one.
-         auuc = e_r_conversion_rate - e_r_conversion_rate_random
-         Note that e_r_conversion_rate_random == e_conversion_rate_random
-        improvement_to_random (float): e_r_conversion_rate_random /
-         e_r_conversion_rate_random
-        qini_coefficient (float): Qini coefficient as defined by Radcliffe 2007.
-         The metric in question is outdated and has some theorethical flaws. We
-         Have implemented tie handling (which Radcliffe says nothing about).
-        k (int): 'k' used to estimate expected calibration error, maximum
-        calibration error, and Kendall's uplift tau.
-        euce (float): Expected uplift calibration error. An extension of the
-         expected calibration error defined for response modeling and suggested
-         by Naeini & al. (2014).
-        muce (float): Maximum uplit calibration error. An extension of the
-         maximu calibration error defined for response modeling and suggested
-         by Naeini & al. (2014).
-        unique_scores (int): Number of unique uplift scores. Sanity check.
-        samples (int): Number of samples used to estimate these metrics.
+                 n_bins=100):
 
-        Notes:
-        e_r_* refers to Expected value of * _given_ no preference on fraction
-         of samples to be treated.
-        In analyzing the results so far, we have not been interested in how many
-         samples have a positive uplift prediction vs. how many samples _should_
-         be treated to reach a maximal conversion rate. Hence I will not store
-         these for now.
-        These metrics should be estimated once for every test, i.e. there will be
-         some time to do this. The functions provided here will be used even
-         though there could in principle be shortcuts.
-
-        -Should there be a function for "quick-metrics"? I.e. metrics that are needed
-        e.g. during training of neural networks? Skip for now.
-        """
         self.algorithm = algorithm
         self.dataset = dataset
         self.parameters = parameters
@@ -155,13 +122,13 @@ class UpliftMetrics():
                 data_class, data_prob, data_group)
         else:
             self.qini_coefficient = None
-        self.k = k  # What's a good default value?
+        self.n_bins = n_bins  # What's a good default value?
         tmp_2 = expected_uplift_calibration_error(data_class, data_prob, data_group,
-                                                  k=self.k)
+                                                  k=self.n_bins)
         self.euce = tmp_2[0]  # Extract EUCE from tuple
         self.muce = tmp_2[1]  # Extract MUCE from tuple
         # self.kendalls_tau = kendalls_uplift_tau(data_class, data_prob, data_group,
-        #                                         k=self.k)
+        #                                         k=self.n_bins) 
         self.kendalls_tau = None  # There seems to be some bug in this metric.
         self.unique_scores = len(np.unique(data_prob))
         self.samples = len(data_prob)
@@ -225,10 +192,10 @@ class UpliftMetrics():
             # Include *everything* in result list:
             result_list = [self.test_name, self.dataset, self.test_description,
                            self.algorithm, self.parameters, str(
-                               datetime.utcnow()),
+                               datetime.now(datetime.UTC)),
                            self.e_r_conversion_rate, self.auuc,
                            self.improvement_to_random, self.qini_coefficient,
-                           self.euce, self.muce, self.k,
+                           self.euce, self.muce, self.n_bins, 
                            self.unique_scores, self.samples,
                            self.conversion_rate_no_treatments,
                            self.conversion_rate_all_treatments,
@@ -248,7 +215,8 @@ def expected_conversion_rate(data_class,
                              data_group,
                              k,
                              smoothing=0):
-    """ Function for estimating expected conversion rate if we
+    """
+    Function for estimating expected conversion rate if we
     treated k/N fraction of all samples.
 
     Args:
@@ -1015,160 +983,6 @@ def kendalls_uplift_tau(data_class,
     return result
 
 
-def plot_conversion_rates(data_class, data_score, data_group, file_name='conversion.png'):
-    """Function for plotting conversion rates vs. treatment rates for treatment
-    rate in [0, 1]. This is almost equivalent to the uplift-curve defined by
-    Jaskowski & Jarosewicz (2012) with the difference that they subtract the
-    baseline conversion (conversion with no treatments) from all conversion
-    rates. The plot has the same shape as the uplift-curve, only the y-axis
-    differs.
-
-    Args:
-    ...
-    file_name (str): Name of the file where you want the plot stored. Include
-     .png-suffix.
-    """
-    conversions = _expected_conversion_rates(
-        data_class, data_score, data_group)
-    # Plot conversion rates:
-    plt.plot([100 * x / len(conversions) for x in range(0, len(conversions))],
-             [100 * item for item in conversions])
-    # Add random line:
-    plt.plot([0, 100], [100 * conversions[0], 100 * conversions[-1]])
-    plt.xlabel('Fraction of treated samples [%]')
-    plt.ylabel('Conversion rate [%]')
-    plt.title('Conversion rate vs. treatment rate')
-    plt.savefig(file_name)
-    plt.close()
-    return()
-
-
-def plot_uplift_curve(data_class, data_score, data_group, file_name='uplift_curve.png', revenue=None):
-    """Function for plotting uplift vs. treatment rate following Jaskowski &
-    Jarosewicz (2012). Very similar to plot_conversion_rates().
-    This might be preferable if you want to highlight the change rather than the
-    complete picture. E.g. if your model increases E_r(conversion rate) from
-    3.1% to 3.15%, this is hardly relevant for the use case at hand. However
-    if you are doing algorithm development, this difference might be interesting
-    and then you might be better off studying uplift rather than conversion rates.
-
-    Args:
-    ...
-    file_name (str): Name of the file where you want your uplift curve stored.
-    revenue (float): Estimated revenue of one conversion. If 'revenue' is not
-     None and is a floating point number, it will be used to estimate the
-     incremental revenues of the uplift model. Otherwise the uplift curve will
-     plot the increase in conversion rate as function of treatment rate. This
-     is the default functionality.
-
-    """
-    conversions = _expected_conversion_rates(
-        data_class, data_score, data_group)
-    n_splits = len(conversions)
-    # Conversion rate with no treatments
-    conversion_0 = conversions[0]
-    # Conversion rate with only treatments
-    conversion_1 = conversions[-1]
-    if revenue is not None:
-        tmp = revenue
-    else:
-        tmp = 1
-    plt.plot([100 * x / n_splits for x in range(0, n_splits)],
-             [tmp * 100 * (conversion - conversion_0) for conversion, x in
-              zip(conversions, range(len(conversions)))], color='tab:blue')  #, label='Tree')
-    # Add line for "random" model:
-    plt.plot([0, 100], [0, tmp * 100 * (conversion_1 - conversion_0)], color='tab:green')  #, label='(random)')
-    if revenue is not None:
-        plt.ylabel('Cumulative revenue increase')
-    else:
-        plt.ylabel('Uplift [%]')
-    #plt.title('Uplift curve')
-    plt.xlabel('Fraction of treated samples [%]')
-    #plt.tight_layout()
-    plt.savefig(file_name, bbox_inches='tight')
-    plt.close()
-    return()
-
-
-def plot_base_probability_vs_uplift(data_probability,
-                                    data_uplift,
-                                    file_name='base_prob_vs_uplift.png',
-                                    k=100000):
-    """This function plots the predicted conversion probability vs. the
-    predicted uplift. Note that the probabilities are not exactly "centered."
-    This function was mostly for testing purposes.
-    This could in principle show if there is some group that can be identified
-    with response modeling (i.e. only predicting conversion probability, not
-    uplift!) that is better or worse affected than the average user. This
-    would enable you to do uplift modeling for that group but using a simpler
-    approach with only response modeling.
-
-    Args:
-    data_probability (np.array([float, ...])): Vector of predicted conversion
-     probabilities.
-    file_name (str): Name of file where the plot should be stored.
-    k (int): Size of the sliding window to smooth the uplift predictions.
-    """
-    # 'k' sets the size of the sliding window.
-    idx = np.argsort(data_probability)  # Sort ascending
-    data_probability = data_probability[idx]
-    # Create sliding average
-    probability_tmp = np.array([np.mean(data_probability[i:(i + k)])
-                                for i in range(len(data_probability) - k)])
-    data_uplift = data_uplift[idx]
-    uplift_tmp = np.array([np.mean(data_uplift[i:(i + k)])
-                           for i in range(len(data_uplift) - k)])
-    plt.plot(probability_tmp, uplift_tmp)
-    plt.xlabel('p(y|do(t=0))')
-    plt.ylabel('p(y|x, do(t=1)) - p(y|x, do(t=0))')
-    plt.title('Predicted conversion probability vs. uplift')
-    plt.savefig(file_name)
-    plt.close()
-    return
-
-
-def plot_uplift_vs_base_probability(data_probability,
-                                    data_uplift,
-                                    file_name='uplift_vs_base_prob.png',
-                                    k=100000):
-    """Function for plotting uplift vs. conversion probability. If this
-    plot even vaguely resemples a 'V', then it indicates that there are
-    samples where the uplift could not be simplified and derived from a
-    response model. In technical terms, it implies that the uplift is not
-    an injective function of the conversion probability. This is mostly
-    a sanity check.
-
-    Args:
-    data_probability (np.array([float, ...])): Vector with predicted
-    conversion probabilities for all samples in vector.
-    data_uplift (np.array([float, ...])): Vector with predicted uplift
-    probabilities for all samples.
-    file_name (str): Name of file where plot is to be stored.
-    k (int): Size of sliding window for smoothing of uplift
-
-    Notes: The sliding window is for uplift predictions. There is no reason
-    to assume that they would behave particularly nicely w.r.t. the conversion
-    probability, hence the sliding window is necessary to make the graph
-    smooth.
-    """
-    # 'k' sets the size of the sliding window.
-    idx = np.argsort(data_uplift)  # Sort ascending
-    data_probability = data_probability[idx]
-    # Create sliding average
-    probability_tmp = np.array([np.mean(data_probability[i:(i + k)])
-                                for i in range(len(data_probability) - k)])
-    data_uplift = data_uplift[idx]
-    uplift_tmp = np.array([np.mean(data_uplift[i:(i + k)])
-                           for i in range(len(data_uplift) - k)])
-    plt.plot(uplift_tmp, probability_tmp)
-    plt.ylabel('p(y|do(t=0))')
-    plt.xlabel('p(y|x, do(t=1)) - p(y|x, do(t=0))')
-    plt.title('Predicted uplift vs. conversion probability')
-    plt.savefig(file_name)
-    plt.close()
-    return
-
-
 @jit(nopython=True)
 def _qini_points(data_class,
                  data_score,
@@ -1176,11 +990,12 @@ def _qini_points(data_class,
     """Auxiliary function for qini_coefficient(). Returns the
     points on the qini-curve.
 
-    Args:
-    data_class (numpy.array([bool]))
-    data_score (numpy.array([float]))
-    data_group (numpy.array([bool])): True indicates that sample
-     belongs to the treatment-group.
+    Parameters
+    ----------
+    data_class : numpy.array([bool])
+    data_score : numpy.array([float])
+    data_group : numpy.array([bool]) 
+        True indicates that sample belongs to the treatment-group.
     """
     # Order data in descending order:
     data_idx = np.argsort(data_score)[::-1]
@@ -1201,11 +1016,13 @@ def _qini_points(data_class,
     for item_class, item_score, item_group in\
             zip(data_class, data_score, data_group):
         if score_previous != item_score:
+            # Skip this section until we find the next observation with differing score.
             # If we have a 'new score', handle the samples
             # currently stored as counts...
             for i in range(1, tmp_n_samples + 1):
-                # Turns out adding the zeroeth item is pointless.
-                # Oh, well... it does not affect a thing.
+                # Tie handling. Generate observations by interpolation.
+                # This is equivalent to drawing a straight line on the
+                # qini curve between the previous and the consequtive point.
                 tmp_qini_point = (treatment_goals + i * tmp_treatment_goals /
                                   tmp_n_samples) -\
                     (control_goals + i * tmp_control_goals /
@@ -1230,7 +1047,7 @@ def _qini_points(data_class,
                           tmp_n_samples) -\
             (control_goals + i * tmp_control_goals /
              tmp_n_samples) * n_factor
-        qini_points += [tmp_qini_point]  # Quick numba fix (it has issues with appending here using .append()).
+        qini_points += [tmp_qini_point]  # Numba fix (it has issues with appending here using .append()).
 
     # Make list into np.array:
     qini_points = np.array(qini_points)
@@ -1240,28 +1057,15 @@ def _qini_points(data_class,
 @jit(nopython=True)
 def qini_coefficient(data_class, data_score, data_group):
     """Function for calculating the qini-coefficient of some data.
-    Note that this does not implement the function as described
-    by Diemert & al. as their normalization introduced a flaw.
-    This version follows Radcliffe (who had included it
-    in a different (but correct!) format. He, after all,
-    introduced the definition of it in the first place!
-
-    Args:
-    data_class (numpy.array([bool]))
-    data_score (numpy.array([float]))
-    data_group (numpy.array([bool]))
-    output_type (str) in {'coefficient', 'points'}. The second option returns
-     a list of points on the qini-curve for e.g. plotting.
-
-    # Handle equally scoring samples?
-    # ...this also makes obvious what to do with equally
-    # scoring samples (Expected value!), although that is not
-    # that interesting as we will ditch this meteric anyway.
+    This version follows Radcliffe (2007), which is the original
+    source for the metric. This function implements tie handling.
+    
+    Parameters
+    ----------
+    data_class : numpy.array([bool])
+    data_score : numpy.array([float])
+    data_group : numpy.array([bool])
     """
-    # Numba does not support warnings. Hence using print instead:
-    print("The qini-coefficient is an outdated metric. Use other " +
-          "metrics in this package instead")
-
     qini_points = _qini_points(data_class, data_score, data_group)
     numerator = np.sum(qini_points)
 
@@ -1287,67 +1091,113 @@ def qini_coefficient(data_class, data_score, data_group):
     return result
 
 
-def test_for_differences_in_mean(N_t1, N_c1,
-                                 k_t1, n_t1, k_c1, n_c1,
-                                 N_t2, N_c2,
-                                 k_t2, n_t2, k_c2, n_c2,
-                                 size=100000,
-                                 check_time=False):
-    """
-    Bayesian test for differences in mean for uplift modeling.
-    Basically this is a test for whether two treatment models produce
-    conversion rates that are different to a statistically significant
-    degree. This is similar to a bayesian test for difference in conversion
-    rates where E(p_1 > p_2), i.e. an integral, is estimated using Monte
-    Carlo simulation.
-    The uncertainty for the conversion rate for a model is characterized
-    by three beta-distributions:
-    -one that characterizes the uncertainty of the treatment rate,
-    -a second one charaterizes the uncertainty of the conversion rate
-    for the treated samples, and
-    -a third one characterizes the uncertainty of the conversion rate
-    for the untreated (control) samples.
+@jit(nopython=True)
+def _euce_points(data_class, data_prob, data_group,
+                 k=100):
+    """Auxiliary function for expected_uplift_calibration_error().
+    This one is numba-optimized. This could also be used for visualization.
 
+    data_class (numpy.array([bool]))
+    data_prob (numpy.array([float])): Predicted change in conversion
+     probability for each sample.
+    data_group (numpy.array([bool]))
+    k (int): Number of groups to split the data into for estimation.
+    """
+    # Doesn't matter if the sorting is ascending or descending.
+    idx = np.argsort(data_prob)
+    n_samples = len(data_prob)
+    expected_errors = []
+    # data_class = np.array([bool(item) for item in data_class])
+    for i in range(k):
+        tmp_idx = idx[int(n_samples / k * i):int((1 + i) * n_samples / k)]
+        treatment_goals = np.sum(data_class[tmp_idx][data_group[tmp_idx]])
+        treatment_samples = np.sum(data_group[tmp_idx])
+        control_goals = np.sum(data_class[tmp_idx][~data_group[tmp_idx]])
+        control_samples = np.sum(~data_group[tmp_idx])
+        # Sanity check:
+        assert treatment_samples + control_samples == len(tmp_idx), \
+            "Error in estimation of expected calibration rate"
+        assert treatment_goals + control_goals == np.sum(data_class[tmp_idx]),\
+            "Error in estimation of expected calibration rate"
+        uplift_in_data = (treatment_goals / treatment_samples) - \
+            (control_goals / control_samples)
+        estimated_uplift = np.mean(data_prob[tmp_idx])
+        expected_errors.append(np.abs(uplift_in_data - estimated_uplift))
+
+    # Make numba-compatible:
+    return np.array(expected_errors)
+
+
+def expected_uplift_calibration_error(data_class, data_prob, data_group,
+                                      k=100, verbose=False):
+    """Function for estimating the expected calibration error and maximum
+    calibration error for uplift. This is an extension of the ECE and MCE
+    presented by Naeini & al. in 2015 (their metrics focused on response
+    calibration, ours on uplift calibration).
+
+    data_class (numpy.array([bool]))
+    data_prob (numpy.array([float])): Predicted change in conversion
+     probability for each sample.
+    data_group (numpy.array([bool]))
+    k (int): Number of groups to split the data into for estimation.
+    """
+
+    # Sanity check
+    if k > len(data_class):
+        raise Exception("k needs to be smaller than N!")
+
+    try:
+        expected_errors = _euce_points(data_class, data_prob,
+                                    data_group, k=k)
+    except Exception as e:  # This exception should be made _much_ more selective. Should.
+        print("******************************************")
+        print("ERROR: Failed to run uplift_metrics._euce_points: %s" % e)
+        print("******************************************")
+        expected_errors = [float("nan"), float("nan")]
+    euce = np.mean(expected_errors)
+    muce = np.max(expected_errors)
+    if verbose:
+        print("Expected uplift calibration error: {}".format(euce))
+        print("Maximum uplift calibration error: {}".format(muce))
+    return (euce, muce)
+
+
+def estimate_adjusted_e_mse(data_class, data_score, data_group):
+    """
+    Function for estimating expectation of mean squared
+    error plus constant. The constant is fixed for a dataset
+    but unknowable. As a consequence, E(MSE) + C is a valid
+    metric for goodness of fit e.g. for model comparisons.
+    
     Args:
-    N_t1 (int): Number of samples that model_1 would like to treat.
-    N_c1 (int) Number of samples that model_1 would _not_ like to treat.
-    k_t1 (int): Number of positive treatment samples that the treatment
-     plan would have targeted.
-    n_t1 (int): Number of treatment samples that the model_1
-     would have targeted.
-    k_c1 (int): Number of samples below targeting threshold that ended up
-     converting (i.e. positive control samples that model_1 would not
-     have targeted).
-    n_c1 (int): Number of control samples that model_1 would not
-     have targeted.
-
-    *2 (*): Similar as above, but for model_2.
-    check_time (bool): Indicator whether the function should be timed. This
-     is for testing purposes.
-
-    Notes:
-    This function cannot be Numba-optimized as numba does not support Scipy.
-    "model_x" can also be thought of as "treatment plan x" (e.g. vocabulary by
-     Gross & Tibshirani, 2016).
+    data_class (np.array): Classes of testing observations
+    data_score (np.array): The predicted uplift. Note that the
+     value matters in this metric (in contrast to e.g. AUUC
+     where only rank matters).
+    data_group (np.array): The group of the observations.
     """
-    if check_time:
-        import time
-        t_1 = time.clock()
-    # First model:
-    samples_1_1 = beta.rvs(N_t1 + 1, N_c1 + 1, size=size)
-    samples_1_2 = beta.rvs(k_t1 + 1, n_t1 - k_t1 + 1, size=size)
-    samples_1_3 = beta.rvs(k_c1 + 1, n_c1 - k_c1 + 1, size=size)
-    # Itemwice product and sum ('1' is recycled).
-    tmp_1 = samples_1_1 * samples_1_2 + (1 - samples_1_1) * samples_1_3
-    # Second model:
-    samples_2_1 = beta.rvs(N_t2 + 1, N_c2 + 1, size=size)
-    samples_2_2 = beta.rvs(k_t2 + 1, n_t2 - k_t2 + 1, size=size)
-    samples_2_3 = beta.rvs(k_c2 + 1, n_c2 - k_c2 + 1, size=size)
-    tmp_2 = samples_2_1 * samples_2_2 + (1 - samples_2_1) * samples_2_3
-    prob = sum(tmp_1 > tmp_2) / float(size)
-    if check_time:
-        print("Time: {}".format(time.clock() - t_1))
-    return prob
+    # 1. Calculate the revert-label from the data. Hypothetically
+    # we could also request that the function is passed the already
+    # estimated values r from the DatasetCollection.
+    # -Which approach is more correct?
+    # -A small testing set will create r-values that are unstable
+    # -Is it correct to use r-values estimated from a bigger dataset?
+    # I would think that it is most correct to estimate directly form
+    # data at hand.
+    N_t = sum(data_group == True)
+    N_c = sum(data_group == False)
+    # Sanity check:
+    assert N_t + N_c == data_group.shape[0], "Error in sample count (_revet_label())."
+    # This needs to be sorted out.
+    p_t = N_t / (N_t + N_c)
+    assert 0.0 < p_t < 1.0, "Revert-label cannot be estimated from only t or c observations."
+    def revert(y_i, t_i, p_t):
+        return (y_i * (int(t_i) - p_t) / (p_t * (1 - p_t)))
+    r_vec = np.array([revert(y_i, t_i, p_t) for y_i, t_i in zip(data_class, data_group)])
+    #r_vec = r_vec.astype(self.data_format['data_type'])
+    # Now we have data_score and r_vec to estimate adjusted E(MSE) from.
+    emse = np.mean([(item_1 - item_2)**2 for item_1, item_2 in zip(data_score, r_vec)])
+    return emse
 
 
 def beta_difference_uncertainty(alpha1, beta1, alpha0, beta0,
@@ -1479,110 +1329,58 @@ def test_for_beta_difference(alpha11, beta11, alpha12, beta12,
     return prob
 
 
-@jit(nopython=True)
-def _euce_points(data_class, data_prob, data_group,
-                 k=100):
-    """Auxiliary function for expected_uplift_calibration_error().
-    This one is numba-optimized. This could also be used for visualization.
-
-    data_class (numpy.array([bool]))
-    data_prob (numpy.array([float])): Predicted change in conversion
-     probability for each sample.
-    data_group (numpy.array([bool]))
-    k (int): Number of groups to split the data into for estimation.
+def test_for_differences_in_mean(N_t1, N_c1,
+                                 k_t1, n_t1, k_c1, n_c1,
+                                 N_t2, N_c2,
+                                 k_t2, n_t2, k_c2, n_c2,
+                                 size=100000):
     """
-    # Doesn't matter if the sorting is ascending or descending.
-    idx = np.argsort(data_prob)
-    n_samples = len(data_prob)
-    expected_errors = []
-    # data_class = np.array([bool(item) for item in data_class])
-    for i in range(k):
-        tmp_idx = idx[int(n_samples / k * i):int((1 + i) * n_samples / k)]
-        treatment_goals = np.sum(data_class[tmp_idx][data_group[tmp_idx]])
-        treatment_samples = np.sum(data_group[tmp_idx])
-        control_goals = np.sum(data_class[tmp_idx][~data_group[tmp_idx]])
-        control_samples = np.sum(~data_group[tmp_idx])
-        # Sanity check:
-        assert treatment_samples + control_samples == len(tmp_idx), \
-            "Error in estimation of expected calibration rate"
-        assert treatment_goals + control_goals == np.sum(data_class[tmp_idx]),\
-            "Error in estimation of expected calibration rate"
-        uplift_in_data = (treatment_goals / treatment_samples) - \
-            (control_goals / control_samples)
-        estimated_uplift = np.mean(data_prob[tmp_idx])
-        expected_errors.append(np.abs(uplift_in_data - estimated_uplift))
+    Bayesian test for differences in mean for uplift modeling.
+    Basically this is a test for whether two treatment models produce
+    conversion rates that are different to a statistically significant
+    degree. This is similar to a bayesian test for difference in conversion
+    rates where E(p_1 > p_2), i.e. an integral, is estimated using Monte
+    Carlo simulation.
+    The uncertainty for the conversion rate for a model is characterized
+    by three beta-distributions:
+    -one that characterizes the uncertainty of the treatment rate,
+    -a second one charaterizes the uncertainty of the conversion rate
+    for the treated samples, and
+    -a third one characterizes the uncertainty of the conversion rate
+    for the untreated (control) samples.
 
-    # Make numba-compatible:
-    return np.array(expected_errors)
+    Similar to test_for_beta_difference with uninformative priors.
 
-
-def expected_uplift_calibration_error(data_class, data_prob, data_group,
-                                      k=100, verbose=False):
-    """Function for estimating the expected calibration error and maximum
-    calibration error for uplift. This is an extension of the ECE and MCE
-    presented by Naeini & al. in 2015 (their metrics focused on response
-    calibration, ours on uplift calibration).
-
-    data_class (numpy.array([bool]))
-    data_prob (numpy.array([float])): Predicted change in conversion
-     probability for each sample.
-    data_group (numpy.array([bool]))
-    k (int): Number of groups to split the data into for estimation.
-    """
-
-    # Sanity check
-    if k > len(data_class):
-        raise Exception("k needs to be smaller than N!")
-
-    try:
-        expected_errors = _euce_points(data_class, data_prob,
-                                    data_group, k=k)
-    except Exception as e:  # This exception should be made _much_ more selective. Should.
-        print("******************************************")
-        print("ERROR: Failed to run uplift_metrics._euce_points: %s" % e)
-        print("******************************************")
-        expected_errors = [float("nan"), float("nan")]
-    euce = np.mean(expected_errors)
-    muce = np.max(expected_errors)
-    if verbose:
-        print("Expected uplift calibration error: {}".format(euce))
-        print("Maximum uplift calibration error: {}".format(muce))
-    return (euce, muce)
-
-
-def estimate_adjusted_e_mse(data_class, data_score, data_group):
-    """
-    Function for estimating expectation of mean squared
-    error plus constant. The constant is fixed for a dataset
-    but unknowable. As a consequence, E(MSE) + C is a valid
-    metric for goodness of fit e.g. for model comparisons.
-    
     Args:
-    data_class (np.array): Classes of testing observations
-    data_score (np.array): The predicted uplift. Note that the
-     value matters in this metric (in contrast to e.g. AUUC
-     where only rank matters).
-    data_group (np.array): The group of the observations.
+    N_t1 (int): Number of samples that model_1 would like to treat.
+    N_c1 (int) Number of samples that model_1 would _not_ like to treat.
+    k_t1 (int): Number of positive treatment samples that the treatment
+     plan would have targeted.
+    n_t1 (int): Number of treatment samples that the model_1
+     would have targeted.
+    k_c1 (int): Number of samples below targeting threshold that ended up
+     converting (i.e. positive control samples that model_1 would not
+     have targeted).
+    n_c1 (int): Number of control samples that model_1 would not
+     have targeted.
+
+    *2 (*): Similar as above, but for model_2.
+
+    Notes:
+    This function cannot be Numba-optimized as numba does not support Scipy.
+    "model_x" can also be thought of as "treatment plan x" (e.g. vocabulary by
+     Gross & Tibshirani, 2016).
     """
-    # 1. Calculate the revert-label from the data. Hypothetically
-    # we could also request that the function is passed the already
-    # estimated values r from the DatasetCollection.
-    # -Which approach is more correct?
-    # -A small testing set will create r-values that are unstable
-    # -Is it correct to use r-values estimated from a bigger dataset?
-    # I would think that it is most correct to estimate directly form
-    # data at hand.
-    N_t = sum(data_group == True)
-    N_c = sum(data_group == False)
-    # Sanity check:
-    assert N_t + N_c == data_group.shape[0], "Error in sample count (_revet_label())."
-    # This needs to be sorted out.
-    p_t = N_t / (N_t + N_c)
-    assert 0.0 < p_t < 1.0, "Revert-label cannot be estimated from only t or c observations."
-    def revert(y_i, t_i, p_t):
-        return (y_i * (int(t_i) - p_t) / (p_t * (1 - p_t)))
-    r_vec = np.array([revert(y_i, t_i, p_t) for y_i, t_i in zip(data_class, data_group)])
-    #r_vec = r_vec.astype(self.data_format['data_type'])
-    # Now we have data_score and r_vec to estimate adjusted E(MSE) from.
-    emse = np.mean([(item_1 - item_2)**2 for item_1, item_2 in zip(data_score, r_vec)])
-    return emse
+    # First model:
+    samples_1_1 = beta.rvs(N_t1 + 1, N_c1 + 1, size=size)
+    samples_1_2 = beta.rvs(k_t1 + 1, n_t1 - k_t1 + 1, size=size)
+    samples_1_3 = beta.rvs(k_c1 + 1, n_c1 - k_c1 + 1, size=size)
+    # Itemwise product and sum ('1' is recycled).
+    tmp_1 = samples_1_1 * samples_1_2 + (1 - samples_1_1) * samples_1_3
+    # Second model:
+    samples_2_1 = beta.rvs(N_t2 + 1, N_c2 + 1, size=size)
+    samples_2_2 = beta.rvs(k_t2 + 1, n_t2 - k_t2 + 1, size=size)
+    samples_2_3 = beta.rvs(k_c2 + 1, n_c2 - k_c2 + 1, size=size)
+    tmp_2 = samples_2_1 * samples_2_2 + (1 - samples_2_1) * samples_2_3
+    prob = sum(tmp_1 > tmp_2) / float(size)
+    return prob
