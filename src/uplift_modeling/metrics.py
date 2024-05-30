@@ -108,7 +108,8 @@ class UpliftMetrics():
         self.adjusted_e_mse = estimate_adjusted_e_mse(data_class, data_prob, data_group)
 
     def __str__(self):
-        """Function for e.g. easy printing of results to screen.
+        """
+        Method for e.g. easy printing of metrics to screen.
         """
         txt = "-" * 40 + "\n" +\
               "Test name: {0.test_name}\n".format(self) +\
@@ -128,13 +129,16 @@ class UpliftMetrics():
         return txt
 
     def write_to_csv(self, file_='uplift_results.csv'):
-        """Function for storing metrics to csv-file in predefined format.
-        The function will by default store the results after all other results,
-        unless the file does not exist whereas it creates that file first.
+        """
+        Method for storing metrics to csv-file in predefined format.
+        The function will by default append the results to the end of the file
+        unless the file does not exist in which case it creates that file first.
 
-        Notes:
-        Python csv-library handles what could potentially break the format,
-        e.g. strings like '";"'.
+        Parameters
+        ----------
+        file_ : str
+            Filename for the csv-file to write results to. The current working
+            directory is used if no path is included.
         """
         # 1. Check if file exists. If it does, append results. Otherwise
         # create first and add header row!
@@ -192,30 +196,36 @@ def expected_conversion_rate(data_class,
     Function for estimating expected conversion rate if we
     treated k/N fraction of all samples.
 
-    Args:
-    data_class (numpy.array, boolean): An array of labels for all samples
-    data_score (numpy.array, float): An array of scores for every sample
-    data_group (numpy.array, boolean): An array of labels for all samples.
-    True indicates that the corresponding sample belongs to the treatment
-    group, false indicates that it belongs to the control group.
-    k (int): Number of samples that should be treated according to the
-    treatment plan. k highest scoring samples are then treated.
-    smoothing (float): Setting smoothing to something else than 0 enables
-    smoothing when estimating the conversion rate. E.g. setting it to one
-    corresponds to Laplace-smoothing.
+    Parameters
+    ----------
+    data_class : numpy.array([bool]) 
+        An array of labels for all samples
+    data_score : numpy.array([float])
+        An array of scores for every sample
+    data_group : numpy.array([bool])
+        An array of labels for all samples. True indicates that the 
+        corresponding sample belongs to the treatment group, false 
+        indicates that it belongs to the control group.
+    k : int
+        Number of samples that should be treated according to the
+        treatment plan. The highest scoring k-observations are then treated.
+    smoothing : float
+        Setting smoothing to something else than 0 enables smoothing when 
+        estimating the conversion rate. E.g. setting it to one corresponds 
+        to Laplace-smoothing.
 
     Implementatdion details:
-    If k/N splits a clump of equally scoring samples, they are all
+    If k/N splits a clump of equally scoring observations, they are all
     treated as the "average" of this clump, i.e. the resulting conversion
     rate is an actual expected value.
 
     This function uses smoothing = 0 per default. This results in estimating
-    the conversion rate of zero samples to 0. This happens frequently when
+    the conversion rate of zero observations to 0. This happens frequently when
     we set k to something small or something very close to N (the total
-    number of samples). This could become a problem if also N is small.
+    number of observations). This could become a problem if also N is small.
 
     Future ideas:
-    Another option to smoothing could be to use a bayesian prior and
+    An option to smoothing could be to use a bayesian prior and
     perhaps estimate the expected value instead of maximum a posteriori
     or maximum likelihood.
     """
@@ -264,6 +274,7 @@ def expected_conversion_rate(data_class,
         treatment_samples_in_subset = np.sum(subset_group)
         control_samples_in_subset = np.sum(~subset_group)
         samples_in_subset = len(subset_group)
+        # Sanity check:
         assert samples_in_subset == treatment_samples_in_subset + control_samples_in_subset,\
             "Mismatch in counting samples in subset?!?"
         treatment_conversions_in_subset = np.sum(subset_class[subset_group])
@@ -290,25 +301,47 @@ def expected_conversion_rate(data_class,
 
 
 def expected_uplift(data_class, data_score, data_group, k=None,
-                    ref_score=None, ref_k=None,
+                    model_2_score=None, model_2_k=None,
                     ref_plan_type=None,
                     smoothing=0):
-    """Function for estimating expected uplift for a given treatment
-    plan w.r.t to a given reference plan. The treatment plan is
-    defined by data_score and k, i.e. the k highest scoring samples
-    are treated. This is a point estimate.
-    With ref_plan_type = 'data', this is the formula presented by
-    by Gross & Tibshirani in 2016.
+    """
+    Function for estimating expected uplift for a given treatment
+    plan w.r.t a given reference plan, i.e. this is the difference
+    between the conversion rate produced by the treatment plan and
+    the conversion rate produced by some alternative (reference plan).
+    The treatment plan is defined by data_score and k so that the 
+    k highest scoring observations are treated. This is a point 
+    estimate and if the reference plan is set to 'rand' this 
+    corresponds to one point on the uplift curve. With 
+    ref_plan_type = 'data', this is the formula presented in
+    Gross & Tibshirani (2016).
 
-    Args:
-    data_class (np.array([bool])): Array of labels for the samples.
-     True indicates positive label.
-    data_score (np.array([float])): Array of uplift scores for the
-     samples. Highest scoring samples are treated first.
-    data_group (np.array([bool])): Array of group for the samples.
-     True indicates that the sample is a treatment sample.
-    ref_plan_type  in {'rand', 'data', 'comp', 'no_treatments',
-     'all_treatments', 'plan_b'}
+    Parameters
+    ----------
+    data_class : np.array([bool])
+        Array of labels for the samples. True indicates positive label.
+    data_score : np.array([float])
+        Array of uplift scores for the observations. Highest scoring observations are treated first.
+    data_group : np.array([bool])
+        Array of group for the samples. True indicates that the observations is a treatment observation.
+    k : int
+        Number of observations that should be treated according to the treatment plan. If no
+        value is provided it is assumed that all observations with positive uplift will be treated.
+    model_2_score : np.array([float])
+        Estimated uplift of observations for reference plan. Allows comparison of two uplift models.
+        Can only be used in ref_plan_type == 'data'.
+    model_2_k : int
+        Number of observations that should be treated according to the reference treatment plan.
+        Can be used only if ref_plan_type == 'model_2'
+    ref_plan_type : str
+        What method to use for estimation of the conversion rate for the reference plan.
+        Has to be one of 
+            'no_treatments' - no treatments applied,
+            'all_treatments' - all observations are treated,
+            'model_2' - top-model_2_k scoring observations following the model_2_score are treated.
+            'gross' - as implemented by Gross & Tibshirani (2016)
+    smoothing : float
+        What smoothing to use.
     """
 
     if k is None:
@@ -316,27 +349,21 @@ def expected_uplift(data_class, data_score, data_group, k=None,
     # Expected conversion rate for treatment plan with k treated samples:
     conversion_for_plan = expected_conversion_rate(
         data_class, data_score, data_group, k, smoothing)
-    if ref_plan_type == 'rand':
-        raise Exception("Random treatment plan is currently not implemented")
-        #  conversion_for_ref = conversion_rand(data_class, data_score, data_group, k, smoothing)
-    elif ref_plan_type == 'data':
-        # Use treatments as used in the data for reference.
-        # This was used by Gross & Tibshirani (2016) with smoothing = 0.
-        conversion_for_ref = (sum(data_class) + smoothing) / \
-            (len(data_class) + 2 * smoothing)
-    elif ref_plan_type == 'comp':
-        # Use some composite treatment plan for reference
-        raise Exception("Composite reference plan is not implemented yet.")
-    elif ref_plan_type == 'no_treatments':
+    if ref_plan_type == 'no_treatments':
         conversion_for_ref = expected_conversion_rate(data_class, data_score,
                                                       data_group, 0, smoothing)
     elif ref_plan_type == 'all_treatments':
         conversion_for_ref = expected_conversion_rate(data_class, data_score, data_group,
                                                       len(data_group), smoothing)
-    elif ref_plan_type == 'plan_b':
+    elif ref_plan_type == 'model_2':
         # "plan_b" another scoring plan with ref_k
-        conversion_for_ref = expected_conversion_rate(data_class, ref_score,
-                                                      data_group, ref_k, smoothing)
+        conversion_for_ref = expected_conversion_rate(data_class, model_2_score,
+                                                      data_group, model_2_k, smoothing)
+    elif ref_plan_type == 'gross':
+        # Use treatments as used in the data for reference.
+        # This was used by Gross & Tibshirani (2016) with smoothing = 0.
+        conversion_for_ref = (sum(data_class) + smoothing) / \
+            (len(data_class) + 2 * smoothing)
 
     tmp_uplift = conversion_for_plan - conversion_for_ref
     return tmp_uplift
