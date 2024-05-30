@@ -1,24 +1,6 @@
 """
 Class for handling datasets for uplift experiments and 
 one class to wrap this class in torch-compatible format.
-
-Development ideas:
--Support for ordinal features could perhaps be added.
--Support for continuous dependent variables could perhaps. This is
-incompatible with CVT, though.
--Data loading could be made more efficient by discarding observations not belonging
-to either treatment group up front and by handling data one observation at a time
-rather than reading in all data and handling one feature at a time.
-Features cannot be normalized before everything is in memory, but at least
-we could reduce the needed memory from 2ND to ND + D or even go as low as ND + 1.
-This matters with large datasets. Alternatively use some serialized format
-for quick access after preprocessing the dataset once.
--Move DATA_FORMAT and easy access to separate file? Maybe keep it here.
---Implement quick-access functions for the most common datasets.
---Add support to download datasets if not present locally.
--Pytorch dataloaders could also be stored in this object in a dict
-in a similar way subsets are stored now.
--This class stores both the original dataset and the subsets. Memory usage?
 """
 
 import csv
