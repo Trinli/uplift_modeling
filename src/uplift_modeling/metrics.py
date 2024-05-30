@@ -341,7 +341,7 @@ def expected_uplift(data_class, data_score, data_group, k=None,
             'model_2' - top-model_2_k scoring observations following the model_2_score are treated.
             'gross' - as implemented by Gross & Tibshirani (2016)
     smoothing : float
-        What smoothing to use.
+        What value to use for smoothing.
     """
 
     if k is None:
@@ -372,24 +372,23 @@ def expected_uplift(data_class, data_score, data_group, k=None,
 @jit(nopython=True)
 def _expected_conversion_rates(data_class, data_score, data_group,
                                smoothing=0):
-    """This function estimates the expected conversion rates for all
-    possible splits in the data and returns a list of these.
+    """
+    This function estimates the expected conversion rates for all
+    possible treatment rates in the data and returns a list of these.
+    This list will have N+1 elements for conversion rates for treatment
+    rate 0, 1/N, ... N/N, where N is the total number of observations.
+    This is used e.g. to plot the uplift curve and estimate AUUC.
 
-    E.g. the average of this list is the expected value for the
-    conversion rate if you have _no_ prior preference on the split. It can
-    also be used for visualization.
-
-    Args:
-    (See other functions in this package for details.)
-    data_class (numpy.array([bool]))
-    data_score (numpy.array([float]))
-    data_group (numpy.array([bool]))
-    smoothing (float): Used for estimation of conversion rates.
-
-    Note:
-    Old version could not possibly be used for estimation of E_r in
-    a dataset with millions of samples. Estimating expected_uplift() for just
-    one such takes seconds..
+    Parameters
+    ----------
+    data_class : np.array([bool])
+        Array of labels for the samples. True indicates positive label.
+    data_score : np.array([float])
+        Array of uplift scores for the observations. Highest scoring observations are treated first.
+    data_group : np.array([bool])
+        Array of group for the samples. True indicates that the observations is a treatment observation.
+    smoothing : float
+        Smoothing used for estimation of conversion rates.
     """
     # Order all (this is used in the loop)
     n_samples = len(data_group)
@@ -443,8 +442,8 @@ def _expected_conversion_rates(data_class, data_score, data_group,
 
                     tmp_t_goals = treatment_goals + i * tmp_treatment_goals / tmp_n_samples
                     tmp_t_samples = treatment_samples + i * tmp_treatment_samples / tmp_n_samples
-                    # max() is here only to deal with the case where there are zero samples. This
-                    # corresponds to estimating the conversion rate of zero samples to zero.
+                    # max() is here only to deal with the case where there are zero observations. This
+                    # corresponds to estimating the conversion rate of zero observations to zero.
                     tmp_t_conversion = (tmp_t_goals + smoothing) /\
                         max(1, tmp_t_samples + 2 * smoothing)
 
@@ -452,11 +451,11 @@ def _expected_conversion_rates(data_class, data_score, data_group,
                     tmp_c_samples = control_samples - i * tmp_control_samples / tmp_n_samples
                     tmp_c_conversion = (tmp_c_goals + smoothing) /\
                         max(1, tmp_c_samples + 2 * smoothing)
-                    # The expected conversion rate when the i first samples should be treated
+                    # The expected conversion rate when the i first observations should be treated
                     # is a weighted average of the two above:
                     conversion_rate = p_t * tmp_t_conversion + p_c * tmp_c_conversion
                     conversions.append(conversion_rate)
-                # Add all samples as integers to treatment and control counters (not tmp)
+                # Add all observations as integers to treatment and control counters (not tmp)
                 treatment_goals += tmp_treatment_goals
                 treatment_samples += tmp_treatment_samples
                 control_goals -= tmp_control_goals
