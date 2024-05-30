@@ -1,33 +1,8 @@
 """
-This module contains the most common uplift metrics and a few statistical
-tests.
-All uplift metrics are estimated by the UpliftMetrics class that efficiently
-estimates them with one method call (initialization).
-The class also contains a method for writing the results to a 
-csv-file.
-
-Also a few Bayesian statistical tests for uplift based on the
-beta-difference distribution.
-
-Could be added:
--conversion_for_fixed_plan(): instead of taking scoring
- and k, just using a binary vector for estimation.
--uplift_by_gross() implementing the special case defined by Gross & Tibshirani (2016?)
-
-Known issues:
--There is still the issue with estimating conversion rate from zero samples in
- expected_conversion_rate() for small and large k. Currently we have set it to
- zero to match the approach by Diemert & al. but it is not particularly
- "correct."
--Check the implementations of the qini-coefficient and Kendall's tau.
---Handles tie handling. Numba fix included.
-
-ToDo
-Clean up the documentation abilities of write_to_csv(). There are a lot of
-options right now. Maybe.
--By passing the UpliftDataset-object, the metrics class could automatically
-pick relevant info to save with the experiment. Data file name, training set size,
-testing and validation set size? Could do something similar with the models.
+Functions for estimating the most common uplift metrics and some Bayesian
+statistics based on the beta-distribution and the beta-difference distribution.
+The UpliftMetrics-class estimates most metrics with one function call efficiently.
+This class also contains methods for writing the results to a csv-file.
 """
 
 import csv
@@ -45,7 +20,7 @@ class UpliftMetrics():
     The main purpose of this class is to keep track of metrics
     and document the results together with appropriate test
     descriptions. Initialization causes estimation of all metrics
-    and self.save_to_csv() stores the metrics.
+    and the save_to_csv()-method stores the metrics.
 
     Parameters
     ----------
@@ -87,8 +62,6 @@ class UpliftMetrics():
         self.parameters = parameters
         self.test_name = test_name
         self.test_description = test_description
-
-        # Make a bunch of these based on the conversion_rates list.
 
         # Sanity check:
         if len(data_class) != len(data_prob) != len(data_group):
