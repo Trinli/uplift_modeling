@@ -2,7 +2,7 @@
 Functions for uplift-related plots.
 """
 import matplotlib.pyplot as plt
-from uplift_modeling.metrics import *
+import uplift_modeling.metrics as um
 
 
 def plot_conversion_rates(data_class, data_score, data_group, file_name='conversion.png'):
@@ -18,7 +18,7 @@ def plot_conversion_rates(data_class, data_score, data_group, file_name='convers
     file_name (str): Name of the file where you want the plot stored. Include
      .png-suffix.
     """
-    conversions = _expected_conversion_rates(
+    conversions = um._expected_conversion_rates(
         data_class, data_score, data_group)
     # Plot conversion rates:
     plt.plot([100 * x / len(conversions) for x in range(0, len(conversions))],
@@ -52,7 +52,7 @@ def plot_uplift_curve(data_class, data_score, data_group, file_name='uplift_curv
      is the default functionality.
 
     """
-    conversions = _expected_conversion_rates(
+    conversions = um._expected_conversion_rates(
         data_class, data_score, data_group)
     n_splits = len(conversions)
     # Conversion rate with no treatments

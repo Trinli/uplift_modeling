@@ -14,9 +14,8 @@ import warnings
 import pytest
 import math
 import numpy as np
-# The import for uplift metrics does not seem correct here.
-# It resides in metrics.uplift_metrics
-import uplift_modeling.metrics.uplift_metrics as uplift_metrics
+import uplift_modeling.metrics as uplift_metrics
+import uplift_modeling.visualizations as visualizations
 
 
 def test_1(i, smoothing=.5):
@@ -109,7 +108,7 @@ def test_7():
     data_score = np.array([-i for i in range(6)])
     data_group = np.array([True, False] * 3)
     tmp = uplift_metrics.auuc_metric(data_class, data_score, data_group, ref_plan_type='zero')
-    uplift_metrics.plot_uplift(data_class, data_score, data_group, ref_plan_type='no_treatments')
+    visualizations.plot_uplift(data_class, data_score, data_group, ref_plan_type='no_treatments')
     return tmp
 
 
@@ -122,7 +121,7 @@ def test_8():
     data_group = np.array([False, True] * 3)
     tmp = uplift_metrics.auuc_metric(data_class, data_score, data_group,
                                      ref_plan_type='no_treatments')
-    uplift_metrics.plot_conversion_rates(data_class, data_score, data_group, file_name='tmp.png')
+    visualizations.plot_conversion_rates(data_class, data_score, data_group, file_name='tmp.png')
     return tmp
 
 
@@ -134,7 +133,7 @@ def test_9():
     data_class = np.array([True, False, True, False, False, True])
     data_score = np.array([-i for i in range(6)])
     data_group = np.array([True, False, True, False, True, False])
-    uplift_metrics.plot_conversion_rates(data_class, data_score, data_group, file_name='tmp.png')
+    visualizations.plot_conversion_rates(data_class, data_score, data_group, file_name='tmp.png')
     tmp_optimal = uplift_metrics.auuc_metric(data_class, data_score, data_group,
                                              ref_plan_type='no_treatments')
     # Change to sub-optimal ordering:
@@ -167,7 +166,7 @@ def test_11():
                                                       algorithm="None",
                                                       dataset='dummy data break csv format"?',
                                                       parameters='break 2 csv format ";"?',
-                                                      k=10)
+                                                      n_bins=10)
     print(uplift_metrics_tmp)
     uplift_metrics_tmp.write_to_csv("code_test_results.csv")
 
