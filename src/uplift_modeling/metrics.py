@@ -321,7 +321,7 @@ def expected_uplift(data_class, data_score, data_group, k=None,
     data_class : np.array([bool])
         Array of labels for the samples. True indicates positive label.
     data_score : np.array([float])
-        Array of uplift scores for the observations. Highest scoring observations are treated first.
+        Array of uplift scores for the observations.
     data_group : np.array([bool])
         Array of group for the samples. True indicates that the observations is a treatment observation.
     k : int
@@ -384,7 +384,7 @@ def _expected_conversion_rates(data_class, data_score, data_group,
     data_class : np.array([bool])
         Array of labels for the samples. True indicates positive label.
     data_score : np.array([float])
-        Array of uplift scores for the observations. Highest scoring observations are treated first.
+        Array of uplift scores for the observations.
     data_group : np.array([bool])
         Array of group for the samples. True indicates that the observations is a treatment observation.
     smoothing : float
@@ -508,26 +508,49 @@ def auuc_metric(data_class, data_score, data_group,
                 ref_plan_type='rand',
                 smoothing=0,
                 testing=False):
-    """This is a function for estimating the expected uplift for some treatment
-    plan with respect to some other reference treatment plan _given_ no
-    prior preference on fraction of samples to be treated. In a sense, this
-    is the change in conversion rate you should expect given your treatment
-    plan if you cannot say what fraction of samples should be treated.
-    This is more equivalent to Jarosewicz's (2012) definition of AUUC.
+    """
+    This function estimates the Area under the Uplift Curve, AUUC
+    (Jaskowski & Jarosewicz, 2012). This is equivalent to estimating
+    the expected uplift for some treatment plan for all treatment 
+    rates (0, 1/N, ..., N/N) and averaging. This can be interpreted 
+    as the expected conversion rate if you have no preference on 
+    treatment rate. This function can also be used to estimate the 
+    expected uplift compared to some other treatment plan than random
+    targeting (as is assumed by AUUC; "uplift" for some treatment 
+    rate is the improvement over randomly targeting the same fraction 
+    of users).
 
-    Args:
-    data_class (np.array([bool]))
-    data_score (np.array([float]))
-    data_group (np.array([bool]))
-    ref_plan_type (str) in {'no_treatments', 'all_treatments', 'rand', 'zero'}
-    testing (bool): If True, the function uses expected_conversion_rate to estimate
-    every point on the curve. This is extremely slow and not recommended.
+    Parameters
+    ----------
+    data_class : np.array([bool])
+        Array of labels for the observations. True indicates positive label.
+    data_score : np.array([float])
+        Array of uplift scores for the observations. Highest scoring observations are treated first.
+    data_group : np.array([bool])
+        Array of group for the observations. True indicates that the observations was treated.
+    ref_plan_type : str
+        Defines what reference plan should be used. Alternatives are:
+        'rand' - Default value. This will result in estimation of AUUC,
+        'all_treatments' - results in an estimate of average improvement in conversion rate 
+         compared to applying treatments to all observations,
+        'no_treatments' - results in an estimate of average improvement in conversion rate 
+         compared to applying no treatments.
+        'zero' - No reference plan. This results in estimation of the expected
+         conversion rate given no preference for treatment rate (in contrast to AUUC
+         that specifically focuses on the improvement in conversion rate, the uplift).
+    smoothing : float
+        Smoothing parameter to use for estimation of conversion rates.
+    testing : bool
+        A flag for testing purposes. If set to True, the function uses a
+        different function for estimating expected conversion rates. This
+        is extremely slow.
 
-    Notes:
+    Notes
+    -----
     With "smoothing=0", this function estimates the conversion rate for
-    treatment or conversion samples to zero if there are no samples to estimate
-    from. This should be only a minor problem, though, that introduces close to
-    1/N * conversion_rate error.
+    treatment or conversion observations to zero if there are no observations to estimate
+    from. This issue is negligible assuming that the number of observations N is large.
+    The error introduced is smaller than 1/N.
     """
 
     if testing:
@@ -579,11 +602,17 @@ def auuc_metric(data_class, data_score, data_group,
 def bin_equally_scoring_samples(data_class, data_score):
     """
     Auxiliary function for kendalls_uplift_tau() below.
-    Creates a list of bins where
-    samples in one bin all share the same score. Makes
-    it easier to deal with expectations etc.
-    Both class and scores are changed to floats (works better
-    with numba).
+    Creates a list of bins where samples in one bin all 
+    share the same score. Makes it easier to deal with 
+    expectations etc. Both class and scores are changed 
+    to floats (works better with numba).
+
+    Parameters
+    ----------
+    data_class : np.array([bool])
+        Array of labels for the observations. True indicates positive label.
+    data_score : np.array([float])
+        Array of uplift scores for the observations.
     """
     previous_score = data_score[0]
     tmp_class_sum = 0.0
@@ -610,11 +639,16 @@ def bin_equally_scoring_samples(data_class, data_score):
             tmp_class_sum = float(int(item_class))
     # key is {'score': 0, 'samples': 1, 'score_sum': 2,
     # 'positives': 3, 'expected_class': 4}
-    score_distribution.append([previous_score,  # Is this an issue for NUMBA?
+    # score_distribution.append([previous_score,  # Is this an issue for NUMBA?
+    #                            tmp_n,
+    #                            previous_score * tmp_n,
+    #                            tmp_class_sum,
+    #                            tmp_class_sum / tmp_n])
+    score_distribution += [previous_score,
                                tmp_n,
                                previous_score * tmp_n,
                                tmp_class_sum,
-                               tmp_class_sum / tmp_n])
+                               tmp_class_sum / tmp_n]
     return score_distribution
 
 
