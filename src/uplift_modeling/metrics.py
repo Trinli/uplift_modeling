@@ -25,13 +25,13 @@ class UpliftMetrics():
     Parameters
     ----------
     data_class : np.array([bool])
-        Array of class labels for samples.
+        Array of class labels for observations.
     data_prob : np.array([float]) 
-        Array of uplift predictions as probabilities for samples. 
+        Array of uplift predictions as probabilities for observations. 
         Can also be replaced with data_score, but metrics 
         relying on probabilitise will be way off.
     data_group : np.array([bool])
-        Array of group labels for samples. True indicates that 
+        Array of group labels for observations. True indicates that 
         observation belongs to the treatment group.
     test_name : str
         Will be written to the result file when write_to_csv() is called.
@@ -104,7 +104,7 @@ class UpliftMetrics():
         #                                         k=self.n_bins) 
         self.kendalls_tau = None  # There seems to be some bug in this metric.
         self.unique_scores = len(np.unique(data_prob))
-        self.samples = len(data_prob)
+        self.observations = len(data_prob)
         self.adjusted_e_mse = estimate_adjusted_e_mse(data_class, data_prob, data_group)
 
     def __str__(self):
@@ -156,7 +156,7 @@ class UpliftMetrics():
                            'Timestamp', 'E_r(conversion rate)',
                            'AUUC', 'Improvement to random [%]', 'Qini-coefficient',
                            'EUCE', 'MUCE', 'k',
-                           '#Unique scores', '#Samples',
+                           '#Unique scores', '#Observations',
                            'E(converison rate|No treatments)',
                            'E(conversion rate|All treatments)',
                            'E(conversion rate|random)',
@@ -174,7 +174,7 @@ class UpliftMetrics():
                            self.e_r_conversion_rate, self.auuc,
                            self.improvement_to_random, self.qini_coefficient,
                            self.euce, self.muce, self.n_bins, 
-                           self.unique_scores, self.samples,
+                           self.unique_scores, self.observations,
                            self.conversion_rate_no_treatments,
                            self.conversion_rate_all_treatments,
                            self.e_conversion_rate_random,
@@ -195,20 +195,20 @@ def expected_conversion_rate(data_class,
                              smoothing=0):
     """
     Function for estimating expected conversion rate if we
-    treated k/N fraction of all samples.
+    treated k/N fraction of all observations.
 
     Parameters
     ----------
     data_class : numpy.array([bool]) 
-        An array of labels for all samples
+        An array of labels for all observations
     data_score : numpy.array([float])
-        An array of scores for every sample
+        An array of scores for every observation
     data_group : numpy.array([bool])
-        An array of labels for all samples. True indicates that the 
-        corresponding sample belongs to the treatment group, false 
+        An array of labels for all observations. True indicates that the 
+        corresponding observation belongs to the treatment group, false 
         indicates that it belongs to the control group.
     k : int
-        Number of samples that should be treated according to the
+        Number of observations that should be treated according to the
         treatment plan. The highest scoring k-observations are then treated.
     smoothing : float
         Setting smoothing to something else than 0 enables smoothing when 
@@ -232,24 +232,24 @@ def expected_conversion_rate(data_class,
     """
 
     if k == 0:
-        # handle case where there are no samples in treatment group
+        # handle case where there are no observations in treatment group
         # i.e. where the conversion rate is estimated only from one group.
-        # data_group == True, i.e. it is a treatment sample.
+        # data_group == True, i.e. it is a treatment observation.
         control_conversions = np.sum(data_class[~data_group])
-        control_samples = np.sum(~data_group)
-        # There are no treated samples if k=0:
+        control_observations = np.sum(~data_group)
+        # There are no treated observations if k=0:
         conversion_rate = (control_conversions + smoothing) /\
-                          (control_samples + 2 * smoothing)
+                          (control_observations + 2 * smoothing)
     elif k == len(data_class):
-        # handle case where there are no samples in control group
+        # handle case where there are no observations in control group
         treatment_conversions = np.sum(data_class[data_group])
-        treatment_samples = np.sum(data_group)
-        # All samples are treated:
+        treatment_observations = np.sum(data_group)
+        # All observations are treated:
         conversion_rate = (treatment_conversions + smoothing) /\
-                          (treatment_samples + 2 * smoothing)
+                          (treatment_observations + 2 * smoothing)
     else:
         # This is the "ordinary" flow.
-        # Sort samples by decreasing score, i.e. the ones that should be treated first
+        # Sort observations by decreasing score, i.e. the ones that should be treated first
         # are first:
         data_idx = np.argsort(data_score)[::-1]
         data_class = data_class[data_idx]
@@ -257,46 +257,46 @@ def expected_conversion_rate(data_class,
         data_group = data_group[data_idx]
 
         # Handle case where k does not happen to comprise a border between two classes.
-        # Three types of interesting samples: treatment samples with score < score[k],
-        # control samples with score > score[k], and all samples with score == score[k].
-        tot_samples = len(data_group)
+        # Three types of interesting observations: treatment observations with score < score[k],
+        # control observations with score > score[k], and all observations with score == score[k].
+        tot_observations = len(data_group)
         treatment_conversions = np.sum(
             data_class[(data_score > data_score[k - 1]) * data_group])
-        treatment_samples = np.sum(
+        treatment_observations = np.sum(
             (data_score > data_score[k - 1]) * data_group)
         control_conversions = np.sum(
             data_class[(data_score < data_score[k - 1]) * ~data_group])
-        control_samples = np.sum(
+        control_observations = np.sum(
             (data_score < data_score[k - 1]) * ~data_group)
-        # Now we still need to count the samples where the score equals data_score[k]
+        # Now we still need to count the observations where the score equals data_score[k]
         # This qpproach would remove the need for a sort.
         subset_group = data_group[data_score == data_score[k - 1]]
         subset_class = data_class[data_score == data_score[k - 1]]
-        treatment_samples_in_subset = np.sum(subset_group)
-        control_samples_in_subset = np.sum(~subset_group)
-        samples_in_subset = len(subset_group)
+        treatment_observations_in_subset = np.sum(subset_group)
+        control_observations_in_subset = np.sum(~subset_group)
+        observations_in_subset = len(subset_group)
         # Sanity check:
-        assert samples_in_subset == treatment_samples_in_subset + control_samples_in_subset,\
-            "Mismatch in counting samples in subset?!?"
+        assert observations_in_subset == treatment_observations_in_subset + control_observations_in_subset,\
+            "Mismatch in counting observations in subset?!?"
         treatment_conversions_in_subset = np.sum(subset_class[subset_group])
         control_conversions_in_subset = np.sum(subset_class[~subset_group])
         # Split in subset corresponding to k
         j = k - np.sum(data_score > data_score[k - 1])
         treatment_conversions += j * treatment_conversions_in_subset /\
-            samples_in_subset
-        # Again, every sample in the subset with equal scores should be
-        # treated as the "average sample" in the group!
-        treatment_samples += j * np.sum(subset_group) / samples_in_subset
-        control_conversions += (samples_in_subset - j) * control_conversions_in_subset /\
-            samples_in_subset
-        control_samples += (samples_in_subset - j) * \
-            np.sum(~subset_group) / samples_in_subset
+            observations_in_subset
+        # Again, every observation in the subset with equal scores should be
+        # treated as the "average observation" in the group!
+        treatment_observations += j * np.sum(subset_group) / observations_in_subset
+        control_conversions += (observations_in_subset - j) * control_conversions_in_subset /\
+            observations_in_subset
+        control_observations += (observations_in_subset - j) * \
+            np.sum(~subset_group) / observations_in_subset
         treatment_conversion_rate = (treatment_conversions + smoothing) /\
-            max(treatment_samples + 2 * smoothing, 1)
+            max(treatment_observations + 2 * smoothing, 1)
         control_conversion_rate = (control_conversions + smoothing) /\
-            max(control_samples + 2 * smoothing, 1)
-        conversion_rate = k / tot_samples * treatment_conversion_rate +\
-            (tot_samples - k) / tot_samples * control_conversion_rate
+            max(control_observations + 2 * smoothing, 1)
+        conversion_rate = k / tot_observations * treatment_conversion_rate +\
+            (tot_observations - k) / tot_observations * control_conversion_rate
 
     return conversion_rate
 
@@ -320,11 +320,11 @@ def expected_uplift(data_class, data_score, data_group, k=None,
     Parameters
     ----------
     data_class : np.array([bool])
-        Array of labels for the samples. True indicates positive label.
+        Array of labels for the observations. True indicates positive label.
     data_score : np.array([float])
         Array of uplift scores for the observations.
     data_group : np.array([bool])
-        Array of group for the samples. True indicates that the observations is a treatment observation.
+        Array of group for the observations. True indicates that the observations is a treatment observation.
     k : int
         Number of observations that should be treated according to the treatment plan. If no
         value is provided it is assumed that all observations with positive uplift will be treated.
@@ -347,7 +347,7 @@ def expected_uplift(data_class, data_score, data_group, k=None,
 
     if k is None:
         k = sum(data_score > 0)
-    # Expected conversion rate for treatment plan with k treated samples:
+    # Expected conversion rate for treatment plan with k treated observations:
     conversion_for_plan = expected_conversion_rate(
         data_class, data_score, data_group, k, smoothing)
     if ref_plan_type == 'no_treatments':
@@ -383,122 +383,122 @@ def _expected_conversion_rates(data_class, data_score, data_group,
     Parameters
     ----------
     data_class : np.array([bool])
-        Array of labels for the samples. True indicates positive label.
+        Array of labels for the observations. True indicates positive label.
     data_score : np.array([float])
         Array of uplift scores for the observations.
     data_group : np.array([bool])
-        Array of group for the samples. True indicates that the observations is a treatment observation.
+        Array of group for the observations. True indicates that the observations is a treatment observation.
     smoothing : float
         Smoothing used for estimation of conversion rates.
     """
     # Order all (this is used in the loop)
-    n_samples = len(data_group)
+    n_observations = len(data_group)
     data_idx = np.argsort(data_score)[::-1]  # Sort in descending order.
     data_score = data_score[data_idx]
     data_group = data_group[data_idx]
     data_class = data_class[data_idx]
 
-    # Initial counts: no treated samples
+    # Initial counts: no treated observations
     conversions = []  # List of conversion rates for treatment plan and k
     treatment_goals = 0
-    treatment_samples = 0
+    treatment_observations = 0
     control_goals = np.sum(data_class[~data_group])
-    control_samples = np.sum(~data_group)
+    control_observations = np.sum(~data_group)
     # NUMERIC STABILITY?
     conversions.append((control_goals + smoothing) /
-                       max(1, control_samples + 2 * smoothing))
+                       max(1, control_observations + 2 * smoothing))
     # Needs to be averaged at end.
     previous_score = np.finfo(np.float32).min
-    k = 0  # Counter for how many samples are "treated" of N (n_samples)
+    k = 0  # Counter for how many observations are "treated" of N (n_observations)
     first_iteration = True
-    tmp_treatment_samples = 0
+    tmp_treatment_observations = 0
     tmp_treatment_goals = 0
-    tmp_control_samples = 0
+    tmp_control_observations = 0
     tmp_control_goals = 0
-    tmp_n_samples = 0
+    tmp_n_observations = 0
 
     for item_class, item_score, item_group in zip(data_class, data_score, data_group):
         if item_score == previous_score:
             # Add items to counters
             # If item is 'treatment group'
-            tmp_treatment_samples += int(item_group)
+            tmp_treatment_observations += int(item_group)
             tmp_treatment_goals += int(item_group) * item_class
             # If item is 'control group'
-            tmp_control_samples += int(~item_group)
+            tmp_control_observations += int(~item_group)
             tmp_control_goals += int(~item_group) * item_class
-            tmp_n_samples += 1  # One more sample to handle.
+            tmp_n_observations += 1  # One more observation to handle.
         else:
             if not first_iteration:
-                # Not first iteration. Handle all equally scoring samples.
-                for i in range(1, tmp_n_samples + 1):  # 0-indexing...
-                    # We want to treat every equally scoring samples as the average of
-                    # all equally scoring samples (i.e. expectation).
-                    # Remember that control samples should be
+                # Not first iteration. Handle all equally scoring observations.
+                for i in range(1, tmp_n_observations + 1):  # 0-indexing...
+                    # We want to treat every equally scoring observations as the average of
+                    # all equally scoring observations (i.e. expectation).
+                    # Remember that control observations should be
                     # subtracted from the total and treatment
-                    # samples added.
-                    # Fraction of samples our model would like to treat:
-                    p_t = (k - tmp_n_samples + i) / n_samples
-                    # Fraction of samples our model would _not_ like to treat:
-                    p_c = (n_samples - k + tmp_n_samples - i) / n_samples
+                    # observations added.
+                    # Fraction of observations our model would like to treat:
+                    p_t = (k - tmp_n_observations + i) / n_observations
+                    # Fraction of observations our model would _not_ like to treat:
+                    p_c = (n_observations - k + tmp_n_observations - i) / n_observations
 
-                    tmp_t_goals = treatment_goals + i * tmp_treatment_goals / tmp_n_samples
-                    tmp_t_samples = treatment_samples + i * tmp_treatment_samples / tmp_n_samples
+                    tmp_t_goals = treatment_goals + i * tmp_treatment_goals / tmp_n_observations
+                    tmp_t_observations = treatment_observations + i * tmp_treatment_observations / tmp_n_observations
                     # max() is here only to deal with the case where there are zero observations. This
                     # corresponds to estimating the conversion rate of zero observations to zero.
                     tmp_t_conversion = (tmp_t_goals + smoothing) /\
-                        max(1, tmp_t_samples + 2 * smoothing)
+                        max(1, tmp_t_observations + 2 * smoothing)
 
-                    tmp_c_goals = control_goals - i * tmp_control_goals / tmp_n_samples
-                    tmp_c_samples = control_samples - i * tmp_control_samples / tmp_n_samples
+                    tmp_c_goals = control_goals - i * tmp_control_goals / tmp_n_observations
+                    tmp_c_observations = control_observations - i * tmp_control_observations / tmp_n_observations
                     tmp_c_conversion = (tmp_c_goals + smoothing) /\
-                        max(1, tmp_c_samples + 2 * smoothing)
+                        max(1, tmp_c_observations + 2 * smoothing)
                     # The expected conversion rate when the i first observations should be treated
                     # is a weighted average of the two above:
                     conversion_rate = p_t * tmp_t_conversion + p_c * tmp_c_conversion
                     conversions.append(conversion_rate)
                 # Add all observations as integers to treatment and control counters (not tmp)
                 treatment_goals += tmp_treatment_goals
-                treatment_samples += tmp_treatment_samples
+                treatment_observations += tmp_treatment_observations
                 control_goals -= tmp_control_goals
-                control_samples -= tmp_control_samples
+                control_observations -= tmp_control_observations
 
             # Reset counters and add new item
             # If item is 'treatment group'
-            tmp_treatment_samples = int(item_group)
+            tmp_treatment_observations = int(item_group)
             tmp_treatment_goals = int(item_group) * item_class
             # If item is 'control group'
-            tmp_control_samples = int(~item_group)
+            tmp_control_observations = int(~item_group)
             tmp_control_goals = int(~item_group) * item_class
-            tmp_n_samples = 1
+            tmp_n_observations = 1
             previous_score = item_score
             first_iteration = False
         k += 1
-    # Handle last samples
-    for i in range(1, tmp_n_samples + 1):  # 0-indexing...
-        # Remember that control samples should be
+    # Handle last observations
+    for i in range(1, tmp_n_observations + 1):  # 0-indexing...
+        # Remember that control observations should be
         # subtracted from the total and treatment
-        # samples added. goal == conversion... conversion -> conversion_rate
-        # Fraction of samples our model would like to treat:
-        p_t = (k - tmp_n_samples + i) / n_samples
-        # Fraction of samples our model would _not_ like to treat:
-        p_c = (n_samples - k + tmp_n_samples - i) / n_samples
+        # observations added. goal == conversion... conversion -> conversion_rate
+        # Fraction of observations our model would like to treat:
+        p_t = (k - tmp_n_observations + i) / n_observations
+        # Fraction of observations our model would _not_ like to treat:
+        p_c = (n_observations - k + tmp_n_observations - i) / n_observations
 
-        tmp_t_goals = treatment_goals + i * tmp_treatment_goals / tmp_n_samples
-        tmp_t_samples = treatment_samples + i * tmp_treatment_samples / tmp_n_samples
-        # max() is here only to deal with the case where there are zero samples. This
-        # corresponds to estimating the conversion rate of zero samples to zero.
-        tmp_t_conversion = tmp_t_goals / max(1, tmp_t_samples)
+        tmp_t_goals = treatment_goals + i * tmp_treatment_goals / tmp_n_observations
+        tmp_t_observations = treatment_observations + i * tmp_treatment_observations / tmp_n_observations
+        # max() is here only to deal with the case where there are zero observations. This
+        # corresponds to estimating the conversion rate of zero observations to zero.
+        tmp_t_conversion = tmp_t_goals / max(1, tmp_t_observations)
 
-        tmp_c_goals = control_goals - i * tmp_control_goals / tmp_n_samples
-        tmp_c_samples = control_samples - i * tmp_control_samples / tmp_n_samples
+        tmp_c_goals = control_goals - i * tmp_control_goals / tmp_n_observations
+        tmp_c_observations = control_observations - i * tmp_control_observations / tmp_n_observations
         tmp_t_conversion = (tmp_t_goals + smoothing) / \
-            max(1, tmp_t_samples + 2 * smoothing)
+            max(1, tmp_t_observations + 2 * smoothing)
 
-        tmp_c_goals = control_goals - i * tmp_control_goals / tmp_n_samples
-        tmp_c_samples = control_samples - i * tmp_control_samples / tmp_n_samples
+        tmp_c_goals = control_goals - i * tmp_control_goals / tmp_n_observations
+        tmp_c_observations = control_observations - i * tmp_control_observations / tmp_n_observations
         tmp_c_conversion = (tmp_c_goals + smoothing) / \
-            max(1, tmp_c_samples + 2 * smoothing)
-        # The expected conversion rate when the i first samples should be treated
+            max(1, tmp_c_observations + 2 * smoothing)
+        # The expected conversion rate when the i first observations should be treated
         # is a weighted average of the two above:
         conversion_rate = p_t * tmp_t_conversion + p_c * tmp_c_conversion
         conversions.append(conversion_rate)
@@ -560,12 +560,12 @@ def auuc_metric(data_class, data_score, data_group,
         # Here for testing purposes!
         e_uplift = 0
         conversions = []
-        n_samples = len(data_group)
-        for i in range(n_samples + 1):
+        n_observations = len(data_group)
+        for i in range(n_observations + 1):
             conversion = expected_conversion_rate(data_class, data_score,
                                                   data_group, i, smoothing)
             conversions.append(conversion)
-            e_uplift += 1 / (n_samples + 1) *\
+            e_uplift += 1 / (n_observations + 1) *\
                 expected_uplift(data_class, data_score, data_group,
                                 i, ref_plan_type=ref_plan_type)
     else:
@@ -583,11 +583,11 @@ def auuc_metric(data_class, data_score, data_group,
         elif ref_plan_type == 'rand':
             conversion_0 = conversions[0]
             conversion_1 = conversions[-1]
-            n_samples = len(data_class)
+            n_observations = len(data_class)
             # Simply subtracting the average of the two above
             # from the mean should be enough.
-            uplifts = [conversion - i / n_samples * conversion_1 - (n_samples - i) /
-                       n_samples * conversion_0
+            uplifts = [conversion - i / n_observations * conversion_1 - (n_observations - i) /
+                       n_observations * conversion_0
                        for i, conversion in zip(range(len(data_class) + 1), conversions)]
         elif ref_plan_type == 'zero':
             # This corresponds to estimating E_r over conversion rates
@@ -600,10 +600,10 @@ def auuc_metric(data_class, data_score, data_group,
 
 
 @jit(nopython=True)
-def bin_equally_scoring_samples(data_class, data_score):
+def bin_equally_scoring_observations(data_class, data_score):
     """
     Auxiliary function for kendalls_uplift_tau() below.
-    Creates a list of bins where samples in one bin all 
+    Creates a list of bins where observations in one bin all 
     share the same score. Makes it easier to deal with 
     expectations etc. Both class and scores are changed 
     to floats (works better with numba).
@@ -676,7 +676,7 @@ def kendalls_uplift_tau(data_class,
     Notes:
     -This version got very ugly as numba does not support lists of dicts.
     The relevant list-indices to keep in mind are
-    {'score': 0, 'samples': 1, 'score_sum': 2, 'positives': 3, 'expected_class': 4}
+    {'score': 0, 'observations': 1, 'score_sum': 2, 'positives': 3, 'expected_class': 4}
 
     -This version uses the group (treatment or control) with fewer observations
     to set bin boundaries. The point with this is to ensure that all bins
@@ -691,7 +691,7 @@ def kendalls_uplift_tau(data_class,
     that is split .3:.7 acts as .3 of one entire observation in one bin and
     as .7 of one observations in the other).
     -Equally scoring observations in one group are all treated as expectations
-    of the observations (i.e. as an "average sample").
+    of the observations (i.e. as an "average observation").
     -On a sidenote, due to using the same bin boundaries for the majority
     observations as defined by the minority observations, the majority observations in
     one bin will be slightly biased upwards as there may always be majority
@@ -716,7 +716,7 @@ def kendalls_uplift_tau(data_class,
     data_group = data_group[data_idx]
 
     if data_score[0] == data_score[-1]:
-        # All samples have equal score.
+        # All observations have equal score.
         return 0
     # True data_group equals treatment group, false equals control:
     treatment_n = np.sum(data_group)
@@ -729,7 +729,7 @@ def kendalls_uplift_tau(data_class,
 
     # Set the smaller group as minority group.
     # The class boundaries are set based on the smaller group
-    # to ensure a more even distribution of samples in bins.
+    # to ensure a more even distribution of observations in bins.
     if minority_group == 'treatment':
         # Then use the treatment group to set bin boundaries.
         min_score = data_score[data_group]
@@ -743,11 +743,11 @@ def kendalls_uplift_tau(data_class,
         maj_class = data_class[data_group]
 
     min_score_distribution = \
-        bin_equally_scoring_samples(min_class, min_score)
+        bin_equally_scoring_observations(min_class, min_score)
     maj_score_distribution = \
-        bin_equally_scoring_samples(maj_class, maj_score)
+        bin_equally_scoring_observations(maj_class, maj_score)
 
-    samples_per_bin = len(min_score) / k
+    observations_per_bin = len(min_score) / k
     # Initialize bin parameters for every bin:
     min_bins = [[0.0, 0.0, 0.0, 0.0, 0.0] for tmp in range(k)]
     maj_bins = [[0.0, 0.0, 0.0, 0.0, 0.0] for tmp in range(k)]
@@ -755,24 +755,24 @@ def kendalls_uplift_tau(data_class,
     i = 0  # Bin counter for result
     j = 0  # Bin counter for treatment_score_distribution
     l = 0  # Bin counter for control_score_distribution
-    # key is {'score': 0, 'samples': 1, 'score_sum': 2, 'positives': 3, 'expected_class': 4}
-    tmp_min_bin = [0.0, 0.0, 0.0, 0.0]  # scores, samples, score_sum, and positives
+    # key is {'score': 0, 'observations': 1, 'score_sum': 2, 'positives': 3, 'expected_class': 4}
+    tmp_min_bin = [0.0, 0.0, 0.0, 0.0]  # scores, observations, score_sum, and positives
     tmp_maj_bin = [0.0, 0.0, 0.0, 0.0]
     # In this while-loop, the boundaries and fractions of minority
-    # samples should be recorded to treat the majority samples equally.
+    # observations should be recorded to treat the majority observations equally.
     while i < k:  # Where 'k' is the desired number of bins.
         # I.e. while there are still bins left to populate
         # Majority class: if score in bin l smaller than in j,
-        # add all samples to maj_bins[i]
-        # Majority samples
-        # don't necessarily exhibit the same scores as the minority samples.
-        # key is {'score': 0, 'samples': 1, 'score_sum': 2, 'positives': 3, 'expected_class': 4}
-        while min_bins[i][1] < (samples_per_bin - tolerance):
+        # add all observations to maj_bins[i]
+        # Majority observations
+        # don't necessarily exhibit the same scores as the minority observations.
+        # key is {'score': 0, 'observations': 1, 'score_sum': 2, 'positives': 3, 'expected_class': 4}
+        while min_bins[i][1] < (observations_per_bin - tolerance):
             # While *this bin is not full
-            # First take samples from tmp_min_bin if there are any:
-            # key is {'score': 0, 'samples': 1, 'score_sum': 2, 'positives': 3, 'expected_class': 4}
-            if tmp_min_bin[1] <= samples_per_bin and tmp_min_bin[1] != 0:
-                # Just put all samples in bins[i]:
+            # First take observations from tmp_min_bin if there are any:
+            # key is {'score': 0, 'observations': 1, 'score_sum': 2, 'positives': 3, 'expected_class': 4}
+            if tmp_min_bin[1] <= observations_per_bin and tmp_min_bin[1] != 0:
+                # Just put all observations in bins[i]:
                 min_bins[i][1] += tmp_min_bin[1]
                 min_bins[i][3] += tmp_min_bin[3]
                 min_bins[i][2] += tmp_min_bin[2]
@@ -780,7 +780,7 @@ def kendalls_uplift_tau(data_class,
                 tmp_min_bin[1] = 0
                 tmp_min_bin[3] = 0
                 tmp_min_bin[2] = 0
-                # Place all equally scoring maj-samples in bin i:
+                # Place all equally scoring maj-observations in bin i:
                 maj_bins[i][1] += tmp_maj_bin[1]
                 maj_bins[i][3] += tmp_maj_bin[3]
                 maj_bins[i][2] += tmp_maj_bin[2]
@@ -791,39 +791,39 @@ def kendalls_uplift_tau(data_class,
                 # First iteration: loop enters this if, the next elif
                 # is not run because of it. That's fine.
                 # +-tolerance to deal with numeric instability:
-                if samples_per_bin - tolerance < min_bins[i][1] < samples_per_bin + tolerance:
+                if observations_per_bin - tolerance < min_bins[i][1] < observations_per_bin + tolerance:
                     # Bin i is full. Jump to next.
                     # At break, i is increased by one and we start populating the next bin.
                     break
-            elif tmp_min_bin[1] > samples_per_bin:
-                # That is, when there are more samples in tmp_min_bin
+            elif tmp_min_bin[1] > observations_per_bin:
+                # That is, when there are more observations in tmp_min_bin
                 # than should fit in one bin, fill the bin...
-                # key is {'score': 0, 'samples': 1, 'score_sum': 2, 'positives': 3, 'expected_class': 4}
-                min_bins[i][1] = samples_per_bin  # If min bins was not empty, this will cause issues?!?
-                # tmp_min_bin is always a carry over of samples that did not fit in previous bin
-                # and in this elif clause, there are more samples in tmp than will fit in *this bin also.
-                min_bins[i][3] += samples_per_bin /\
+                # key is {'score': 0, 'observations': 1, 'score_sum': 2, 'positives': 3, 'expected_class': 4}
+                min_bins[i][1] = observations_per_bin  # If min bins was not empty, this will cause issues?!?
+                # tmp_min_bin is always a carry over of observations that did not fit in previous bin
+                # and in this elif clause, there are more observations in tmp than will fit in *this bin also.
+                min_bins[i][3] += observations_per_bin /\
                     tmp_min_bin[1] * tmp_min_bin[3]
-                min_bins[i][2] += samples_per_bin /\
+                min_bins[i][2] += observations_per_bin /\
                     tmp_min_bin[1] * tmp_min_bin[2]
-                # Estimate the fraction before removing samples from tmp_min_bin:
-                # This fraction of maj samples should also be put in teh bin.
-                frac = samples_per_bin / tmp_min_bin[1]
-                # ...and then remove the samples from tmp_min_bin:
+                # Estimate the fraction before removing observations from tmp_min_bin:
+                # This fraction of maj observations should also be put in teh bin.
+                frac = observations_per_bin / tmp_min_bin[1]
+                # ...and then remove the observations from tmp_min_bin:
                 tmp_min_bin[1] -= min_bins[i][1]
                 tmp_min_bin[3] -= min_bins[i][3]
                 tmp_min_bin[2] -= min_bins[i][2]
-                # Next take a corresponding amount of maj-samples and add
+                # Next take a corresponding amount of maj-observations and add
                 # to maj_bins[i]:
-                tmp_maj_samples = frac * tmp_maj_bin[1]
+                tmp_maj_observations = frac * tmp_maj_bin[1]
                 tmp_maj_positives = frac * tmp_maj_bin[3]
                 tmp_maj_score_sum = frac * tmp_maj_bin[2]
-                # key is {'score': 0, 'samples': 1, 'score_sum': 2, 'positives': 3, 'expected_class': 4}
-                maj_bins[i][1] = tmp_maj_samples  # THERE SHOULD NOT BE ANY in this maj_bin from previously.
+                # key is {'score': 0, 'observations': 1, 'score_sum': 2, 'positives': 3, 'expected_class': 4}
+                maj_bins[i][1] = tmp_maj_observations  # THERE SHOULD NOT BE ANY in this maj_bin from previously.
                 maj_bins[i][3] = tmp_maj_positives
                 maj_bins[i][2] = tmp_maj_score_sum
                 # Leave in tmp-bins what has not been placed yet.
-                tmp_maj_bin[1] -= tmp_maj_samples
+                tmp_maj_bin[1] -= tmp_maj_observations
                 tmp_maj_bin[3] -= tmp_maj_positives
                 tmp_maj_bin[2] -= tmp_maj_score_sum
                 break  # Necessary here! Will break out of inner
@@ -832,20 +832,20 @@ def kendalls_uplift_tau(data_class,
             # The score boundaries are set by j. If j exceeds len(min...)
             # that must be because of numeric instability (i.e. last bin
             # is not full).
-            # key is {'score': 0, 'samples': 1, 'score_sum': 2, 'positives': 3, 'expected_class': 4}
+            # key is {'score': 0, 'observations': 1, 'score_sum': 2, 'positives': 3, 'expected_class': 4}
             if min_score_distribution[j][1] <=\
-                samples_per_bin - min_bins[i][1]:
-                # If number of samples in j is smaller or equal to the
-                # number of samples that fit in bins[i]:
+                observations_per_bin - min_bins[i][1]:
+                # If number of observations in j is smaller or equal to the
+                # number of observations that fit in bins[i]:
                 min_bins[i][1] += min_score_distribution[j][1]
                 min_bins[i][3] += min_score_distribution[j][3]
                 min_bins[i][2] += min_score_distribution[j][2]
                 while l < len(maj_score_distribution):
-                    # key is {'score': 0, 'samples': 1, 'score_sum': 2, 'positives': 3, 'expected_class': 4}
+                    # key is {'score': 0, 'observations': 1, 'score_sum': 2, 'positives': 3, 'expected_class': 4}
                     # While score in maj_... is smaller or equal to the corresponding min bin:
                     if maj_score_distribution[l][0] <=\
                         min_score_distribution[j][0]:  # pytest.approx here? Scores should not be unstable.
-                        # If all min samples with *this
+                        # If all min observations with *this
                         maj_bins[i][1] += maj_score_distribution[l][1]
                         maj_bins[i][3] += maj_score_distribution[l][3]
                         maj_bins[i][2] += maj_score_distribution[l][2]
@@ -854,57 +854,57 @@ def kendalls_uplift_tau(data_class,
                         break
                     # Try all bins until criterion above is not satisfied.
                     l += 1
-                # We just moved _all_ samples from *this distribution bin
+                # We just moved _all_ observations from *this distribution bin
                 # to bins[i]. Move on.
-                # All samples fit in *this bin.
-            else:  # There are more samples in min_sc...[.] than will fit in this bin:
+                # All observations fit in *this bin.
+            else:  # There are more observations in min_sc...[.] than will fit in this bin:
                 # Hypothetically (without additional break above)
                 # we could at this point be in a case where min_bins is full
-                # and we are merely trying to move around zero samples.
+                # and we are merely trying to move around zero observations.
                 # (i.e. tmp_n == 0)
                 # 
-                # Let's take just the number of samples from j that
+                # Let's take just the number of observations from j that
                 # fit into bin[i]:
-                # key is {'score': 0, 'samples': 1, 'score_sum': 2, 'positives': 3, 'expected_class': 4}
-                tmp_n = samples_per_bin - min_bins[i][1]  # number of samples to move to *this bin
-                frac = tmp_n / min_score_distribution[j][1]  # Fraction of samples to take from bin
+                # key is {'score': 0, 'observations': 1, 'score_sum': 2, 'positives': 3, 'expected_class': 4}
+                tmp_n = observations_per_bin - min_bins[i][1]  # number of observations to move to *this bin
+                frac = tmp_n / min_score_distribution[j][1]  # Fraction of observations to take from bin
                 min_bins[i][3] += frac * min_score_distribution[j][3]
                 min_bins[i][1] += tmp_n
                 min_bins[i][2] += frac * min_score_distribution[j][2]
-                # Now bins[i]['samples'] should equal samples_per_bin.
+                # Now bins[i]['observations'] should equal observations_per_bin.
                 # Sanity check:
-                #assert samples_per_bin == pytest.approx(min_bins[i]['samples'])
-                # Carry over remaining samples
-                # key is {'score': 0, 'samples': 1, 'score_sum': 2, 'positives': 3, 'expected_class': 4}
+                #assert observations_per_bin == pytest.approx(min_bins[i]['observations'])
+                # Carry over remaining observations
+                # key is {'score': 0, 'observations': 1, 'score_sum': 2, 'positives': 3, 'expected_class': 4}
                 tmp_min_bin = [0,  # score, not used
-                               min_score_distribution[j][1] - tmp_n,  # samples
+                               min_score_distribution[j][1] - tmp_n,  # observations
                                min_score_distribution[j][2] * (1 - frac),
                                min_score_distribution[j][3] * (1 - frac)]
                 while l < len(maj_score_distribution):
-                    # key is {'score': 0, 'samples': 1, 'score_sum': 2, 'positives': 3, 'expected_class': 4}
+                    # key is {'score': 0, 'observations': 1, 'score_sum': 2, 'positives': 3, 'expected_class': 4}
                     if maj_score_distribution[l][0] <\
                         min_score_distribution[j][0]:
-                        # Put all samples in bin:
+                        # Put all observations in bin:
                         maj_bins[i][1] += maj_score_distribution[l][1]
                         maj_bins[i][3] += maj_score_distribution[l][3]
                         maj_bins[i][2] += maj_score_distribution[l][2]
                     elif maj_score_distribution[l][0] ==\
                         min_score_distribution[j][0]:
-                        # All samples in min group did not fit in
+                        # All observations in min group did not fit in
                         # *this bin. Now we want the same fraction
-                        # of maj samples into maj_bins[i].
-                        # key is {'score': 0, 'samples': 1, 'score_sum': 2, 'positives': 3, 'expected_class': 4}
-                        tmp_maj_samples = frac * maj_score_distribution[l][1]
+                        # of maj observations into maj_bins[i].
+                        # key is {'score': 0, 'observations': 1, 'score_sum': 2, 'positives': 3, 'expected_class': 4}
+                        tmp_maj_observations = frac * maj_score_distribution[l][1]
                         tmp_maj_positives = frac * maj_score_distribution[l][3]
                         tmp_maj_score_sum = frac * maj_score_distribution[l][2]
-                        maj_bins[i][1] += tmp_maj_samples
+                        maj_bins[i][1] += tmp_maj_observations
                         maj_bins[i][3] += tmp_maj_positives
                         maj_bins[i][2] += tmp_maj_score_sum
-                        # Carry over remaining samples:
-                        # key is {'score': 0, 'samples': 1, 'score_sum': 2, 'positives': 3, 'expected_class': 4}
+                        # Carry over remaining observations:
+                        # key is {'score': 0, 'observations': 1, 'score_sum': 2, 'positives': 3, 'expected_class': 4}
                         tmp_maj_bin = [0,  # score, not used
-                                       maj_score_distribution[l][1] -  # samples
-                                       tmp_maj_samples,
+                                       maj_score_distribution[l][1] -  # observations
+                                       tmp_maj_observations,
                                        maj_score_distribution[l][2] -  # score_sum
                                        tmp_maj_score_sum,
                                        maj_score_distribution[l][3] -  # positives
@@ -915,37 +915,37 @@ def kendalls_uplift_tau(data_class,
                         break
                     l += 1
 
-                # All samples from bin j moved to tmp_min_bin.
+                # All observations from bin j moved to tmp_min_bin.
             j += 1
         # Move on to next bin:
         i += 1
     # If the maj_bins still have observations that are untreated when min_bins is full,
     # those need to be dealt with separately:
     while l < len(maj_score_distribution):
-        # key is {'score': 0, 'samples': 1, 'score_sum': 2, 'positives': 3, 'expected_class': 4}
+        # key is {'score': 0, 'observations': 1, 'score_sum': 2, 'positives': 3, 'expected_class': 4}
         maj_bins[-1][1] += maj_score_distribution[l][1]
         maj_bins[-1][2] += maj_score_distribution[l][2]
         maj_bins[-1][3] += maj_score_distribution[l][3]
         l += 1
 
-    # Sanity check (number of samples assigned to lists equals number of input samples):
-    sum_min_samples = np.sum(np.array([item[1] for item in min_bins]))
-    sum_maj_samples = np.sum(np.array([item[1] for item in maj_bins]))
+    # Sanity check (number of observations assigned to lists equals number of input observations):
+    sum_min_observations = np.sum(np.array([item[1] for item in min_bins]))
+    sum_maj_observations = np.sum(np.array([item[1] for item in maj_bins]))
 
-    n_samples = len(data_class)
-    checksum = sum_min_samples + sum_maj_samples
-    if (n_samples - tolerance) < checksum < n_samples + tolerance:
+    n_observations = len(data_class)
+    checksum = sum_min_observations + sum_maj_observations
+    if (n_observations - tolerance) < checksum < n_observations + tolerance:
         # All is fine
         pass
     else:
-        print("Error: Not dealing with all samples.")
+        print("Error: Not dealing with all observations.")
         # Numba does not handle string handling to print more info here.
         return np.nan
     # Just split one group into k bins and treat equally scoring
-    # samples as the expectation of every equally scoring sample and place those
+    # observations as the expectation of every equally scoring observation and place those
     # in the same bins.
     # The scores now represent the uplift estimates and we are only interested in
-    # the ranks between samples. Due to the composition, the bins should have a
+    # the ranks between observations. Due to the composition, the bins should have a
     # strictly monotonically increasing scores.
     # Next do the correlation estimation. equal score and equal uplift estimate
     # equals '0', bins in right order +1, bins in wrong order -1, normalize
@@ -959,15 +959,15 @@ def kendalls_uplift_tau(data_class,
     uplifts = []  # item[0] is uplift, item[1] is score
     for treatment, control in zip(treatment_bins,
                                   control_bins):
-        # Due to the bin boundaries being set from one group (minority samples)
-        # there is not a guarantee that all bins get majority samples. In such
+        # Due to the bin boundaries being set from one group (minority observations)
+        # there is not a guarantee that all bins get majority observations. In such
         # cases Kendall's uplift tau cannot be estimated.
         # Actually, asserts should be replaced by "return NaN and print text above."
-        #if treatment['samples'] == 0 or control['samples'] == 0:
+        #if treatment['observations'] == 0 or control['observations'] == 0:
         if treatment[1] == 0 or control[1] == 0:
-            # No samples in bin. Tau cannot be estimated.
+            # No observations in bin. Tau cannot be estimated.
             print("Cannot estimate Kendall's uplift tau with given k.")
-            print("(Bin with zero samples.) Perhaps try smaller k.")
+            print("(Bin with zero observations.) Perhaps try smaller k.")
             return np.nan
         p_t = treatment[3] / treatment[1]
         p_c = control[3] / control[1]
@@ -1024,7 +1024,7 @@ def _qini_points(data_class,
     data_class : numpy.array([bool])
     data_score : numpy.array([float])
     data_group : numpy.array([bool]) 
-        True indicates that sample belongs to the treatment-group.
+        True indicates that observation belongs to the treatment-group.
     """
     # Order data in descending order:
     data_idx = np.argsort(data_score)[::-1]
@@ -1039,43 +1039,43 @@ def _qini_points(data_class,
     control_goals = 0
     treatment_goals = 0
     score_previous = np.finfo(np.float32).min
-    tmp_n_samples = 1  # Set to one to allow division in first iteration
+    tmp_n_observations = 1  # Set to one to allow division in first iteration
     tmp_treatment_goals = 0
     tmp_control_goals = 0
     for item_class, item_score, item_group in\
             zip(data_class, data_score, data_group):
         if score_previous != item_score:
             # Skip this section until we find the next observation with differing score.
-            # If we have a 'new score', handle the samples
+            # If we have a 'new score', handle the observations
             # currently stored as counts...
-            for i in range(1, tmp_n_samples + 1):
+            for i in range(1, tmp_n_observations + 1):
                 # Tie handling. Generate observations by interpolation.
                 # This is equivalent to drawing a straight line on the
                 # qini curve between the previous and the consequtive point.
                 tmp_qini_point = (treatment_goals + i * tmp_treatment_goals /
-                                  tmp_n_samples) -\
+                                  tmp_n_observations) -\
                     (control_goals + i * tmp_control_goals /
-                     tmp_n_samples) * n_factor
+                     tmp_n_observations) * n_factor
                 qini_points.append(tmp_qini_point)
             # Add tmp items to vectors before resetting them
             treatment_goals += tmp_treatment_goals
             control_goals += tmp_control_goals
             # Reset counters
-            tmp_n_samples = 0
+            tmp_n_observations = 0
             tmp_treatment_goals = 0
             tmp_control_goals = 0
             score_previous = item_score
         # Add item to counters:
-        tmp_n_samples += 1
+        tmp_n_observations += 1
         tmp_treatment_goals += int(item_group) * item_class
         tmp_control_goals += int(~item_group) * item_class
 
-    # Handle remaining samples:
-    for i in range(1, tmp_n_samples + 1):
+    # Handle remaining observations:
+    for i in range(1, tmp_n_observations + 1):
         tmp_qini_point = (treatment_goals + i * tmp_treatment_goals /
-                          tmp_n_samples) -\
+                          tmp_n_observations) -\
             (control_goals + i * tmp_control_goals /
-             tmp_n_samples) * n_factor
+             tmp_n_observations) * n_factor
         qini_points += [tmp_qini_point]  # Numba fix (it has issues with appending here using .append()).
 
     # Make list into np.array:
@@ -1108,7 +1108,7 @@ def qini_coefficient(data_class, data_score, data_group):
                               ([False] * int(np.sum(~data_class[~data_group]))) +
                               ([True] * int(np.sum(data_class[~data_group]))))
 
-    # Score array so that first sample have highest score. This is just to get
+    # Score array so that first observation have highest score. This is just to get
     # the sorting not to change the order for estimation of "optimal ordering."
     new_data_score = np.array([i for i in range(len(data_group))][::-1])
     new_qini_points = _qini_points(data_class=new_data_class,
@@ -1130,29 +1130,29 @@ def _euce_points(data_class, data_prob, data_group,
     ----------
     data_class : numpy.array([bool])
     data_prob : numpy.array([float]) 
-        Predicted change in conversion probability for each sample.
+        Predicted change in conversion probability for each observation.
     data_group : numpy.array([bool])
     k : int 
         Number of groups to split the data into for estimation.
     """
     # Doesn't matter if the sorting is ascending or descending.
     idx = np.argsort(data_prob)
-    n_samples = len(data_prob)
+    n_observations = len(data_prob)
     expected_errors = []
     # data_class = np.array([bool(item) for item in data_class])
     for i in range(k):
-        tmp_idx = idx[int(n_samples / k * i):int((1 + i) * n_samples / k)]
+        tmp_idx = idx[int(n_observations / k * i):int((1 + i) * n_observations / k)]
         treatment_goals = np.sum(data_class[tmp_idx][data_group[tmp_idx]])
-        treatment_samples = np.sum(data_group[tmp_idx])
+        treatment_observations = np.sum(data_group[tmp_idx])
         control_goals = np.sum(data_class[tmp_idx][~data_group[tmp_idx]])
-        control_samples = np.sum(~data_group[tmp_idx])
+        control_observations = np.sum(~data_group[tmp_idx])
         # Sanity check:
-        assert treatment_samples + control_samples == len(tmp_idx), \
+        assert treatment_observations + control_observations == len(tmp_idx), \
             "Error in estimation of expected calibration rate"
         assert treatment_goals + control_goals == np.sum(data_class[tmp_idx]),\
             "Error in estimation of expected calibration rate"
-        uplift_in_data = (treatment_goals / treatment_samples) - \
-            (control_goals / control_samples)
+        uplift_in_data = (treatment_goals / treatment_observations) - \
+            (control_goals / control_observations)
         estimated_uplift = np.mean(data_prob[tmp_idx])
         expected_errors.append(np.abs(uplift_in_data - estimated_uplift))
 
@@ -1172,7 +1172,7 @@ def expected_uplift_calibration_error(data_class, data_prob, data_group,
     ----------
     data_class : numpy.array([bool])
     data_prob : numpy.array([float]) 
-        Predicted change in conversion probability for each sample.
+        Predicted change in conversion probability for each observation.
     data_group : numpy.array([bool])
     k : int 
         Number of groups to split the data into for estimation.
@@ -1226,7 +1226,7 @@ def estimate_adjusted_e_mse(data_class, data_score, data_group):
     N_t = sum(data_group == True)
     N_c = sum(data_group == False)
     # Sanity check:
-    assert N_t + N_c == data_group.shape[0], "Error in sample count (_revet_label())."
+    assert N_t + N_c == data_group.shape[0], "Error in observation count (_revet_label())."
     # This needs to be sorted out.
     p_t = N_t / (N_t + N_c)
     assert 0.0 < p_t < 1.0, "Revert-label cannot be estimated from only t or c observations."
@@ -1277,7 +1277,7 @@ def beta_difference_uncertainty(alpha1, beta1, alpha0, beta0,
         In [0, 1]. The probability mass required inside of
         the interval.
     """
-    # Draw samples from distribution
+    # Draw observations from distribution
     p_t1 = beta.rvs(alpha1 + prior_a1, beta1 + prior_b1, size=N)
     p_t0 = beta.rvs(alpha0 + prior_a0, beta0 + prior_b0, size=N)
     tau = p_t1 - p_t0
@@ -1384,28 +1384,28 @@ def test_for_differences_in_mean(N_t1, N_c1,
     by three beta-distributions:
     -one that characterizes the uncertainty of the treatment rate,
     -a second one charaterizes the uncertainty of the conversion rate
-    for the treated samples, and
+    for the treated observations, and
     -a third one characterizes the uncertainty of the conversion rate
-    for the untreated (control) samples.
+    for the untreated (control) observations.
 
     Similar to test_for_beta_difference with uninformative priors.
 
     Parameters
     ----------
     N_t1 : int 
-        Number of samples that model_1 would like to treat.
+        Number of observations that model_1 would like to treat.
     N_c1 : int 
-        Number of samples that model_1 would _not_ like to treat.
+        Number of observations that model_1 would _not_ like to treat.
     k_t1 : int 
-        Number of positive treatment samples that the treatment plan would have targeted.
+        Number of positive treatment observations that the treatment plan would have targeted.
     n_t1 : int 
-        Number of treatment samples that the model_1 would have targeted.
+        Number of treatment observations that the model_1 would have targeted.
     k_c1 : int 
-        Number of samples below targeting threshold that ended up
-        converting (i.e. positive control samples that model_1 would not
+        Number of observations below targeting threshold that ended up
+        converting (i.e. positive control observations that model_1 would not
         have targeted).
     n_c1 : int 
-        Number of control samples that model_1 would not have targeted.
+        Number of control observations that model_1 would not have targeted.
     *2 : (*) 
         Similar as above, but for model_2.
 
@@ -1415,15 +1415,15 @@ def test_for_differences_in_mean(N_t1, N_c1,
      Gross & Tibshirani, 2016).
     """
     # First model:
-    samples_1_1 = beta.rvs(N_t1 + 1, N_c1 + 1, size=size)
-    samples_1_2 = beta.rvs(k_t1 + 1, n_t1 - k_t1 + 1, size=size)
-    samples_1_3 = beta.rvs(k_c1 + 1, n_c1 - k_c1 + 1, size=size)
+    observations_1_1 = beta.rvs(N_t1 + 1, N_c1 + 1, size=size)
+    observations_1_2 = beta.rvs(k_t1 + 1, n_t1 - k_t1 + 1, size=size)
+    observations_1_3 = beta.rvs(k_c1 + 1, n_c1 - k_c1 + 1, size=size)
     # Itemwise product and sum ('1' is recycled).
-    tmp_1 = samples_1_1 * samples_1_2 + (1 - samples_1_1) * samples_1_3
+    tmp_1 = observations_1_1 * observations_1_2 + (1 - observations_1_1) * observations_1_3
     # Second model:
-    samples_2_1 = beta.rvs(N_t2 + 1, N_c2 + 1, size=size)
-    samples_2_2 = beta.rvs(k_t2 + 1, n_t2 - k_t2 + 1, size=size)
-    samples_2_3 = beta.rvs(k_c2 + 1, n_c2 - k_c2 + 1, size=size)
-    tmp_2 = samples_2_1 * samples_2_2 + (1 - samples_2_1) * samples_2_3
+    observations_2_1 = beta.rvs(N_t2 + 1, N_c2 + 1, size=size)
+    observations_2_2 = beta.rvs(k_t2 + 1, n_t2 - k_t2 + 1, size=size)
+    observations_2_3 = beta.rvs(k_c2 + 1, n_c2 - k_c2 + 1, size=size)
+    tmp_2 = observations_2_1 * observations_2_2 + (1 - observations_2_1) * observations_2_3
     prob = sum(tmp_1 > tmp_2) / float(size)
     return prob
