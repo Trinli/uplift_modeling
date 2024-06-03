@@ -25,26 +25,34 @@ class UpliftMetrics():
     Parameters
     ----------
     data_class : np.array([bool])
-        Array of class labels for observations.
+        Array of class labels of observations.
     data_prob : np.array([float]) 
-        Array of uplift predictions as probabilities for observations. 
-        Can also be replaced with data_score, but metrics 
-        relying on probabilitise will be way off.
+        Array of uplift predictions as probabilities of observations. 
+        Can be replaced with array of unbounded uplift scores,
+        but metrics relying on probabilities will be way off.
     data_group : np.array([bool])
-        Array of group labels for observations. True indicates that 
+        Array of group labels of observations. True indicates that 
         observation belongs to the treatment group.
     test_name : str
-        Will be written to the result file when write_to_csv() is called.
+        Name of the test. 
+        Will be stored in the result file.
     test_description : str
-        Will be written to the result file when write_to_csv() is called.
+        Description of the test. 
+        Will be stored in the result file.
     algorithm : str
-        type of algorithm, e.g. 'double-classifier with lr'
+        Type of algorithm, e.g. 'double-classifier with lr'.
+        Will be stored in the result file.
     dataset : str
-        dataset used to obtain model and metrics
-    parameters : str?
-        Will be stored.
+        Dataset used to obtain model and metrics
+        Will be stored in the result file.
+    parameters : str
+        Parameters used in model training.
+        Will be stored in the result file.
     estimate_qini : bool
         Decided whether the qini-coefficient is estimated.
+        By default, it is not estimated as it is a poorly
+        normalized substitute for AUUC and has slightly
+        weaker properties.
     n_bins : int
         Number of bins used for estimation of expected uplift calibration
         error and Kendall's tau. Sometimes this is referred to as 'k'.
@@ -97,7 +105,7 @@ class UpliftMetrics():
             self.qini_coefficient = None
         self.n_bins = n_bins  # What's a good default value?
         tmp_2 = expected_uplift_calibration_error(data_class, data_prob, data_group,
-                                                  k=self.n_bins)
+                                                  n_bins=self.n_bins)
         self.euce = tmp_2[0]  # Extract EUCE from tuple
         self.muce = tmp_2[1]  # Extract MUCE from tuple
         # self.kendalls_tau = kendalls_uplift_tau(data_class, data_prob, data_group,
@@ -137,7 +145,7 @@ class UpliftMetrics():
         Parameters
         ----------
         file_ : str
-            Filename for the csv-file to write results to. The current working
+            Filename for the csv-file to write results in. The current working
             directory is used if no path is included.
         """
         # 1. Check if file exists. If it does, append results. Otherwise
@@ -194,41 +202,38 @@ def expected_conversion_rate(data_class,
                              k,
                              smoothing=0):
     """
-    Function for estimating expected conversion rate if we
-    treated k/N fraction of all observations.
+    Function for estimating expected conversion rate if 
+    k/N of all observations were treated where N is the
+    number of observations in data_class.
 
     Parameters
     ----------
     data_class : numpy.array([bool]) 
-        An array of labels for all observations
+        An array of class labels for all observations (in e.g. testing set).
     data_score : numpy.array([float])
-        An array of scores for every observation
+        An array of uplift scores for every observation.
     data_group : numpy.array([bool])
-        An array of labels for all observations. True indicates that the 
-        corresponding observation belongs to the treatment group, false 
-        indicates that it belongs to the control group.
+        An array of treatment labels for all observations. True indicates 
+        that the corresponding observation belongs to the treatment group, 
+        False indicates that it belongs to the control group.
     k : int
-        Number of observations that should be treated according to the
-        treatment plan. The highest scoring k-observations are then treated.
+        Number of observations that should be treated. The highest scoring 
+        k-observations are then treated.
     smoothing : float
         Setting smoothing to something else than 0 enables smoothing when 
         estimating the conversion rate. E.g. setting it to one corresponds 
         to Laplace-smoothing.
 
-    Implementatdion details:
-    If k/N splits a clump of equally scoring observations, they are all
-    treated as the "average" of this clump, i.e. the resulting conversion
-    rate is an actual expected value.
+    Implementation details
+    ----------------------
+    Tie handling: If k/N splits a clique of equally scoring observations, 
+    they are all treated as the "average" of this clique, i.e. the 
+    resulting conversion rate is an actual expected value.
 
     This function uses smoothing = 0 per default. This results in estimating
     the conversion rate of zero observations to 0. This happens frequently when
     we set k to something small or something very close to N (the total
-    number of observations). This could become a problem if also N is small.
-
-    Future ideas:
-    An option to smoothing could be to use a bayesian prior and
-    perhaps estimate the expected value instead of maximum a posteriori
-    or maximum likelihood.
+    number of observations). This could be a problem if also N is small.
     """
 
     if k == 0:
@@ -307,11 +312,11 @@ def expected_uplift(data_class, data_score, data_group, k=None,
                     smoothing=0):
     """
     Function for estimating expected uplift for a given treatment
-    plan w.r.t a given reference plan, i.e. this is the difference
+    plan over a given reference plan. This is the difference
     between the conversion rate produced by the treatment plan and
-    the conversion rate produced by some alternative (reference plan).
-    The treatment plan is defined by data_score and k so that the 
-    k highest scoring observations are treated. This is a point 
+    the conversion rate produced by the alternative (reference plan).
+    The treatment plan is defined by data_score and k so that the
+    k highest scoring observations are treated. This is a point
     estimate and if the reference plan is set to 'rand' this 
     corresponds to one point on the uplift curve. With 
     ref_plan_type = 'data', this is the formula presented in
@@ -330,17 +335,22 @@ def expected_uplift(data_class, data_score, data_group, k=None,
         value is provided it is assumed that all observations with positive uplift will be treated.
     model_2_score : np.array([float])
         Estimated uplift of observations for reference plan. Allows comparison of two uplift models.
-        Can only be used in ref_plan_type == 'data'.
+        Can only be used if ref_plan_type == 'data'.
     model_2_k : int
         Number of observations that should be treated according to the reference treatment plan.
         Can be used only if ref_plan_type == 'model_2'
     ref_plan_type : str
         What method to use for estimation of the conversion rate for the reference plan.
         Has to be one of 
-            'no_treatments' - no treatments applied,
-            'all_treatments' - all observations are treated,
-            'model_2' - top-model_2_k scoring observations following the model_2_score are treated.
-            'gross' - as implemented by Gross & Tibshirani (2016)
+
+            'no_treatments'
+             -no treatments applied.
+            'all_treatments'
+             -all observations are treated.
+            'model_2'
+             -top-model_2_k scoring observations following the model_2_score are treated.
+            'gross'
+             -as implemented by Gross & Tibshirani (2016).
     smoothing : float
         What value to use for smoothing.
     """
@@ -526,17 +536,22 @@ def auuc_metric(data_class, data_score, data_group,
     data_class : np.array([bool])
         Array of labels for the observations. True indicates positive label.
     data_score : np.array([float])
-        Array of uplift scores for the observations. Highest scoring observations are treated first.
+        Array of uplift scores for the observations.
     data_group : np.array([bool])
-        Array of group for the observations. True indicates that the observations was treated.
+        Array of group for the observations. True indicates that the observation was treated.
     ref_plan_type : str
         Defines what reference plan should be used. Alternatives are:
-        'rand' - Default value. This will result in estimation of AUUC,
-        'all_treatments' - results in an estimate of average improvement in conversion rate 
-         compared to applying treatments to all observations,
-        'no_treatments' - results in an estimate of average improvement in conversion rate 
+        
+        'rand' 
+         -default value. This will result in estimation of AUUC.
+        'all_treatments'
+         -results in an estimate of average improvement in conversion rate 
+         compared to applying treatments to all observations.
+        'no_treatments'
+         -results in an estimate of average improvement in conversion rate 
          compared to applying no treatments.
-        'zero' - No reference plan. This results in estimation of the expected
+        'zero'
+         -no reference plan. This results in estimation of the expected
          conversion rate given no preference for treatment rate (in contrast to AUUC
          that specifically focuses on the improvement in conversion rate, the uplift).
     smoothing : float
@@ -602,7 +617,7 @@ def auuc_metric(data_class, data_score, data_group,
 @jit(nopython=True)
 def bin_equally_scoring_observations(data_class, data_score):
     """
-    Auxiliary function for kendalls_uplift_tau() below.
+    Auxiliary function for kendalls_uplift_tau().
     Creates a list of bins where observations in one bin all 
     share the same score. Makes it easier to deal with 
     expectations etc. Both class and scores are changed 
@@ -649,64 +664,55 @@ def bin_equally_scoring_observations(data_class, data_score):
 def kendalls_uplift_tau(data_class,
                         data_score,
                         data_group,
-                        k=100,
+                        n_bins=100,
                         tolerance=1e-6):
     """
-    Function for estimating Kendall's tau (i.e. rank _correlation_
-    between k bins). This version handles ties by averaging equally
-    scoring observations over neighboring bins (i.e. treating the 
-    observations as an expectation of all equally scoring observations
-    in that group).
+    Function for estimating Kendall's tau, i.e. the rank correlation
+    between binned averages of the uplift estimates and empirical
+    estimates of the same bins.
+    Tie handling is implemented by treating one observation of an
+    equally scoring clique as the expectation of all observations
+    in that clique and split across the neighboring bins.
 
     Parameters
     ----------
     data_class : np.array([bool]) 
         Array of class-labels. True indicates positive observation.
     data_score : np.array([float]) 
-        Array of scores for observations. These are assumed to be strictly 
-        monotonically related to the uplift estimates of the observations.
-    data_group : np.array(bool) 
+        Array of uplift scores for observations. These are assumed to be strictly 
+        monotonically related to the uplift estimates :math:`\\tau` of the observations.
+    data_group : np.array([bool]) 
         True indicates treatment group, False control group.
-    k : int 
+    n_bins : int 
         Number of bins. Belbahri (2019, Arxiv) suggested using 5 or 10, 
         which is just way too few for larger datasets.
     tolerance : float 
         Acceptable error due to machine accuracy causing small discrepancies.
 
-    Notes:
-    -This version got very ugly as numba does not support lists of dicts.
-    The relevant list-indices to keep in mind are
-    {'score': 0, 'observations': 1, 'score_sum': 2, 'positives': 3, 'expected_class': 4}
-
-    -This version uses the group (treatment or control) with fewer observations
+    Notes
+    -----
+    This version uses the group (treatment or control) with fewer observations
     to set bin boundaries. The point with this is to ensure that all bins
     get a more even number of observations in the group with less observations to
     get more narrow credible intervals. Using the majority group for
     setting bin boundaries could also be a good idea as that would result
     in boundaries being in more "correct" positions. It is not clear which
-    version should be better. This could perhaps be analyzed empirically.
-    -Further the bins are populated so that if k=100 and there are 150 observations
+    version is better. This could perhaps be analyzed empirically.
+    
+    The bins are populated so that if n_bins=100 and there are 150 observations
     in the minority group, all bins get 1.5 observations. The fractions are
-    split into bins as weighted expectations of that observations (i.e. an observation
-    that is split .3:.7 acts as .3 of one entire observation in one bin and
-    as .7 of one observations in the other).
-    -Equally scoring observations in one group are all treated as expectations
-    of the observations (i.e. as an "average observation").
-    -On a sidenote, due to using the same bin boundaries for the majority
+    split into bins as weighted expectations of that observations.
+    
+    Equally scoring observations in one group are all treated as expectations
+    of the clique of observations (i.e. as an "average observation").
+    A more simple version without tie handling would fail on the Criteo dataset
+    as there is a large number of observations with identical scores in the dataset.
+    
+    On a sidenote, due to using the same bin boundaries for the majority group
     observations as defined by the minority observations, the majority observations in
-    one bin will be slightly biased upwards as there may always be majority
-    observations in one bin that scores in [max(min_score_i), min(min_score_i+1)]
-    where i denotes *this bin. This bias is assumed to be tiny.
-    -There is some numeric instability in this approach as we split observations
-    etc. This is dealt with using tolerance.
-    -Ties contribute 0 to the numerator of the correlation,
-    but 1 to the denominator
-
-    The simple version where we simply select boundaries and then place
-    observations based on these would fail on Criteo data as there is a large
-    number of observations with identical scores in the dataset (identical
-    profiles, probably users Criteo knew nothing of). Hence this more
-    complex version.
+    one bin will be slightly biased upwards as there may always be majority group
+    observations in one bin that falls in the gap between [max(min_score_i), 
+    min(min_score_i+1)] where i denotes some bin. This bias is assumed to be tiny.
     """
 
     # Sort all data
@@ -747,10 +753,10 @@ def kendalls_uplift_tau(data_class,
     maj_score_distribution = \
         bin_equally_scoring_observations(maj_class, maj_score)
 
-    observations_per_bin = len(min_score) / k
+    observations_per_bin = len(min_score) / n_bins
     # Initialize bin parameters for every bin:
-    min_bins = [[0.0, 0.0, 0.0, 0.0, 0.0] for tmp in range(k)]
-    maj_bins = [[0.0, 0.0, 0.0, 0.0, 0.0] for tmp in range(k)]
+    min_bins = [[0.0, 0.0, 0.0, 0.0, 0.0] for tmp in range(n_bins)]
+    maj_bins = [[0.0, 0.0, 0.0, 0.0, 0.0] for tmp in range(n_bins)]
     # Initialize counters:
     i = 0  # Bin counter for result
     j = 0  # Bin counter for treatment_score_distribution
@@ -760,7 +766,7 @@ def kendalls_uplift_tau(data_class,
     tmp_maj_bin = [0.0, 0.0, 0.0, 0.0]
     # In this while-loop, the boundaries and fractions of minority
     # observations should be recorded to treat the majority observations equally.
-    while i < k:  # Where 'k' is the desired number of bins.
+    while i < n_bins:  # Where 'k' is the desired number of bins.
         # I.e. while there are still bins left to populate
         # Majority class: if score in bin l smaller than in j,
         # add all observations to maj_bins[i]
@@ -979,11 +985,11 @@ def kendalls_uplift_tau(data_class,
         uplifts.append([p_t - p_c, bin_score])
     # Remember that 'k' is the number of bins!
     tmp_corr = 0
-    for i in range(k - 1):
+    for i in range(n_bins - 1):
         # Bins with identical scores contribute +1 if the
         # uplift estimates also are identical, -1 otherwise.
         # Using pytest.approx to deal with numeric instability.
-        for j in range(i+1, k):
+        for j in range(i + 1, n_bins):
             if uplifts[j][0] - tolerance < uplifts[i][0] < uplifts[j][0] + tolerance:
                 # Using pytest.approx to deal with numeric instability.
                 if uplifts[j][1] - tolerance < uplifts[i][1] < uplifts[j][1] + tolerance:
@@ -1008,7 +1014,7 @@ def kendalls_uplift_tau(data_class,
             else:
                 raise Exception("Estimation of correlation failed")
     # Return estimated Kendall's uplift tau:
-    result = (tmp_corr / (k * (k - 1) / 2))
+    result = (tmp_corr / (n_bins * (n_bins - 1) / 2))
     return result
 
 
@@ -1085,15 +1091,19 @@ def _qini_points(data_class,
 
 @jit(nopython=True)
 def qini_coefficient(data_class, data_score, data_group):
-    """Function for calculating the qini-coefficient of some data.
+    """
+    Function for calculating the qini-coefficient of some data.
     This version follows Radcliffe (2007), which is the original
     source for the metric. This function implements tie handling.
-    
+
     Parameters
     ----------
-    data_class : numpy.array([bool])
-    data_score : numpy.array([float])
-    data_group : numpy.array([bool])
+    data_class : np.array([bool]) 
+        Array of class-labels. True indicates positive observation.
+    data_score : np.array([float]) 
+        Array of uplift scores for observations.
+    data_group : np.array([bool]) 
+        True indicates treatment group, False control group.
     """
     qini_points = _qini_points(data_class, data_score, data_group)
     numerator = np.sum(qini_points)
@@ -1161,30 +1171,33 @@ def _euce_points(data_class, data_prob, data_group,
 
 
 def expected_uplift_calibration_error(data_class, data_prob, data_group,
-                                      k=100, verbose=False):
+                                      n_bins=100, verbose=False):
     """
     Function for estimating the expected calibration error and maximum
-    calibration error for uplift. This is an extension of the ECE and MCE
-    presented by Naeini & al. in 2015 (their metrics focused on response
-    calibration, ours on uplift calibration).
+    calibration error for uplift. The expected calibration error is the
+    mean deviation of predictions from binned estimates, whereas the 
+    maximum calibration error is the maximum deviation from binned
+    estimates. These metrics were presented in Nyberg & Klami (2021).
 
     Parameters
     ----------
     data_class : numpy.array([bool])
+        Array of class labels for the observations.
     data_prob : numpy.array([float]) 
-        Predicted change in conversion probability for each observation.
+        Array of uplift predictions for the observations.
     data_group : numpy.array([bool])
-    k : int 
-        Number of groups to split the data into for estimation.
+        Array of treatment labels for the observations.
+    n_bins : int 
+        Number of bins to split the data into for estimation.
     """
 
     # Sanity check
-    if k > len(data_class):
+    if n_bins > len(data_class):
         raise Exception("k needs to be smaller than N!")
 
     try:
         expected_errors = _euce_points(data_class, data_prob,
-                                    data_group, k=k)
+                                    data_group, k=n_bins)
     except Exception as e:  # This exception should be made _much_ more selective. Should.
         print("******************************************")
         print("ERROR: Failed to run uplift_metrics._euce_points: %s" % e)
@@ -1200,20 +1213,22 @@ def expected_uplift_calibration_error(data_class, data_prob, data_group,
 
 def estimate_adjusted_e_mse(data_class, data_score, data_group):
     """
-    Function for estimating expectation of mean squared
-    error plus constant. The constant is fixed for a dataset
-    but unknowable. As a consequence, E(MSE) + C is a valid
-    metric for goodness of fit e.g. for model comparisons.
+    Function for estimating expectation of the mean squared
+    error between the uplift estimate in data_score and the
+    actual (unknowable) uplift added with some constant. The 
+    constant is fixed for a dataset but unknowable. As a 
+    consequence E(MSE) + C is a valid metric for goodness 
+    of fit e.g. for model comparisons (Gutierrez & Gérardy, 2017).
     
     Parameters
     ----------
     data_class : np.array 
-        Classes of testing observations
+        Array of classes for testing observations
     data_score : np.array 
-        The predicted uplift. Note that the value matters in this 
+        Array of predicted uplifts. Note that the value matters in this 
         metric (in contrast to e.g. AUUC where only rank matters).
     data_group : np.array 
-        The group of the observations.
+        Array with the treatment group of the observations.
     """
     # 1. Calculate the revert-label from the data. Hypothetically
     # we could also request that the function is passed the already
@@ -1245,18 +1260,14 @@ def beta_difference_uncertainty(alpha1, beta1, alpha0, beta0,
                      N=100000,
                      p_mass=0.95):
     """
-    This is a Monte Carlo (MC) approach to estimating
+    This is a Monte Carlo (MC) approximation of the
     uncertainty of a beta-difference distribution
     (Pham-Gia & Turkkan, 1993). The uncertainty is
     quantified as the highest posterior density credible
     interval (HPD-inverval). 
-
-    The beta-difference distribution is equivalent to
-    the uncertainty distribution of the difference between
-    two Bernoulli-distributed variables. In the case of 
-    uplift this corresponds to alpha1 and beta1 for
-    :math:`p(y=1|x, do(t=1))` and alpha0 and beta 0 for
-    :math:`p(y=1|x, do(t=0))`.
+    The beta-difference distribution characterises the
+    uncertainty of the difference between two Bernoulli-
+    distributed variables.
 
     Parameters
     ----------
@@ -1271,6 +1282,7 @@ def beta_difference_uncertainty(alpha1, beta1, alpha0, beta0,
     prior_a1 : float 
         Prior for alpha1
     etc.
+
     N : int
         Number of observations to draw. Should probably be at least 10,000.
     p_mass : float
@@ -1326,15 +1338,16 @@ def test_for_beta_difference(alpha11, beta11, alpha12, beta12,
                              prior_a22=1, prior_b22=1,
                              N=100000):
     """
-    Bayesian estimate for :math:`p(\tau(x_1)) > p(\tau(x_2))`,
+    Bayesian estimate for :math:`p(\\tau(x_1)) > p(\\tau(x_2))`,
     i.e. the probability that one uplift estimate is greater
     than the other. This is based on the assumption that the
     uncertainty of the uplift follows a beta-difference
     distribution (Pham-Gia & Turkkan, 1993).
 
     This is equivalent to assuming that conversion probabilities used 
-    to estimate uplift are Bernoulli-distributed and that the parameters 
-    for these follow Beta-distributions.
+    to estimate uplift are Bernoulli-distributed and that the 
+    uncertainty of the parameters of these follow Beta-distributions 
+    (Nyberg & Klami, 2024).
 
     Parameters
     ----------
@@ -1343,15 +1356,17 @@ def test_for_beta_difference(alpha11, beta11, alpha12, beta12,
     beta11 : float
         Beta for p(y=1|x, t=1) for tau_1
     alpha12 : float
-        alpha for p(y=1|x, t=0) for tau_1
+        Alpha for p(y=1|x, t=0) for tau_1
     beta12 : float
-        beta for p(y=1|x, t=0) for tau_1
+        Beta for p(y=1|x, t=0) for tau_1
     alpha21 : float
-        alpha for p(y=1|x, t=1) for tau_2
+        Alpha for p(y=1|x, t=1) for tau_2
     etc.
+
     prior_a11 : float 
         Alpha prior for p(y=1|x, t=1) for tau_1
     etc.
+
     N : int 
         Number of observations to draw. Should probably be at least 10,000.
     """
@@ -1374,7 +1389,7 @@ def test_for_differences_in_mean(N_t1, N_c1,
                                  k_t2, n_t2, k_c2, n_c2,
                                  size=100000):
     """
-    Bayesian test for differences in mean for uplift modeling.
+    Bayesian test for differences in mean for two uplift models.
     Basically this is a test for whether two treatment models produce
     conversion rates that are different to a statistically significant
     degree. This is similar to a bayesian test for difference in conversion
@@ -1382,13 +1397,12 @@ def test_for_differences_in_mean(N_t1, N_c1,
     Carlo simulation.
     The uncertainty for the conversion rate for a model is characterized
     by three beta-distributions:
-    -one that characterizes the uncertainty of the treatment rate,
-    -a second one charaterizes the uncertainty of the conversion rate
+    one that characterizes the uncertainty of the treatment rate,
+    a second one charaterizes the uncertainty of the conversion rate
     for the treated observations, and
-    -a third one characterizes the uncertainty of the conversion rate
+    a third one characterizes the uncertainty of the conversion rate
     for the untreated (control) observations.
-
-    Similar to test_for_beta_difference with uninformative priors.
+    All are estimated with uniform uninformative priors (1, 1).
 
     Parameters
     ----------
@@ -1406,13 +1420,10 @@ def test_for_differences_in_mean(N_t1, N_c1,
         have targeted).
     n_c1 : int 
         Number of control observations that model_1 would not have targeted.
-    *2 : (*) 
+    N_t2 : int
+        Number of observations that model_1 would like to treat.
+    etc.    
         Similar as above, but for model_2.
-
-    Notes:
-    This function cannot be Numba-optimized as numba does not support Scipy.
-    "model_x" can also be thought of as "treatment plan x" (e.g. vocabulary by
-     Gross & Tibshirani, 2016).
     """
     # First model:
     observations_1_1 = beta.rvs(N_t1 + 1, N_c1 + 1, size=size)

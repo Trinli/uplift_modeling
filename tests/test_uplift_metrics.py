@@ -51,8 +51,8 @@ def test_2(ref_plan_type):
 
 
 def test_4():
-    """A test where all treatment samples are positive and all control
-    samples zero.
+    """A test where all treatment observations are positive and all control
+    observations zero.
     """
     data_class = np.array([True, False] * 3)
     data_score = np.array([-i for i in range(6)])
@@ -76,8 +76,8 @@ def test_3():
 
 
 def test_5():
-    """A test where all treatment samples are positive and all control
-    samples zero.
+    """A test where all treatment observations are positive and all control
+    observations zero.
     """
     data_class = np.array([True, True] * 3)
     data_score = np.array([-i for i in range(6)])
@@ -88,8 +88,8 @@ def test_5():
 
 
 def test_6():
-    """A test where all treatment samples are positive and all control
-    samples zero.
+    """A test where all treatment observations are positive and all control
+    observations zero.
     """
     data_class = np.array([False, False] * 3)
     data_score = np.array([-i for i in range(6)])
@@ -100,8 +100,8 @@ def test_6():
 
 
 def test_7():
-    """A test where all treatment samples are positive and all control
-    samples zero.
+    """A test where all treatment observations are positive and all control
+    observations zero.
     Not in use.
     """
     data_class = np.array([False] * 4 + [True, False])
@@ -113,8 +113,8 @@ def test_7():
 
 
 def test_8():
-    """A test where all treatment samples are positive and all control
-    samples zero.
+    """A test where all treatment observations are positive and all control
+    observations zero.
     """
     data_class = np.array([False] * 5 + [True])
     data_score = np.array([-i for i in range(6)])
@@ -126,7 +126,7 @@ def test_8():
 
 
 def test_9():
-    """Test for optimal vs. suboptimal ordering of samples.
+    """Test for optimal vs. suboptimal ordering of observations.
 
     The optimal ordering should score higher.
     """
@@ -150,7 +150,7 @@ def test_10():
     data_class = np.array([False, True] * 50 + [True] * 3)
     data_score = np.array([-i for i in range(103)])
     data_group = np.array([False, True, True, False] * 25 + [False] * 3)
-    tmp = uplift_metrics.expected_uplift_calibration_error(data_class, data_score, data_group, k=10)
+    tmp = uplift_metrics.expected_uplift_calibration_error(data_class, data_score, data_group, n_bins=10)
     return tmp
 
 
@@ -188,10 +188,10 @@ def test_11():
     assert np.mean([tmp_0, tmp_1]) == uplift_metrics_tmp.e_conversion_rate_random,\
         "Error in estimation of random conversion rate"
     tmp = uplift_metrics.expected_uplift_calibration_error(data_class, data_score,
-                                                           data_group, k=10)
+                                                           data_group, n_bins=10)
     assert tmp[0] == uplift_metrics_tmp.euce, "Error in class-estimation of EUCE"
     assert tmp[1] == uplift_metrics_tmp.muce, "Error in class-estimation of MUCE"
-    assert len(data_class) == uplift_metrics_tmp.samples, "Error in estimation of #samples."
+    assert len(data_class) == uplift_metrics_tmp.observations, "Error in estimation of #observations."
     assert len(np.unique(data_score)) == uplift_metrics_tmp.unique_scores, \
         "Error in counting #unique scores"
 
@@ -206,7 +206,7 @@ def test_12():
     tau = uplift_metrics.kendalls_uplift_tau(data_class,
                                              data_score,
                                              data_group,
-                                             k=10)
+                                             n_bins=10)
     assert pytest.approx(tau) == 0.0222222222, "Error in test 12, Kendall's uplift tau"
     return tau
 
@@ -222,7 +222,7 @@ def test_13():
     tau = uplift_metrics.kendalls_uplift_tau(data_class,
                                              data_score,
                                              data_group,
-                                             k=3)
+                                             n_bins=3)
     assert pytest.approx(tau) == 1, "Error in test 13, Kendall's uplfit tau"
     return tau
 
@@ -241,7 +241,7 @@ def test_14():
     tau = uplift_metrics.kendalls_uplift_tau(data_class,
                                              data_score,
                                              data_group,
-                                             k=3)
+                                             n_bins=3)
     assert pytest.approx(tau) == -1, "Error in test 14, Kendall's uplfit tau"
     return tau
 
@@ -256,7 +256,7 @@ def test_15():
     tau = uplift_metrics.kendalls_uplift_tau(data_class,
                                              data_score,
                                              data_group,
-                                             k=3)
+                                             n_bins=3)
     assert pytest.approx(tau) == -1, "Error in test 15, Kendall's uplfit tau"
     return tau
 
@@ -271,7 +271,7 @@ def test_16():
     tau = uplift_metrics.kendalls_uplift_tau(data_class,
                                              data_score,
                                              data_group,
-                                             k=3)
+                                             n_bins=3)
     assert pytest.approx(tau) == 0, "Error in test 16, Kendall's uplfit tau"
     return tau
 
@@ -285,7 +285,7 @@ def test_17():
     Why does this crash? j is larger than the number of
     unique scores in minority group.
     This should crash because some bins for the control group
-    get zero samples.
+    get zero observations.
     """
     data_class = np.array([True] * 6)
     data_score = np.array([1] * 2 + [4.1] + [4] * 3)
@@ -293,7 +293,7 @@ def test_17():
     tau = uplift_metrics.kendalls_uplift_tau(data_class,
                                              data_score,
                                              data_group,
-                                             k=3)    
+                                             n_bins=3)
     assert math.isnan(tau), "Test 17 failed (Kendall's tau)."
     return tau
 
@@ -312,7 +312,7 @@ def test_18():
     tau = uplift_metrics.kendalls_uplift_tau(data_class,
                                              data_score,
                                              data_group,
-                                             k=3)
+                                             n_bins=3)
     assert math.isnan(tau), "Test 18 failed (Kendall's tau)."
     return tau
 
@@ -330,7 +330,7 @@ def test_19():
     tau = uplift_metrics.kendalls_uplift_tau(data_class,
                                              data_score,
                                              data_group,
-                                             k=3)
+                                             n_bins=3)
     assert pytest.approx(tau) == 1/3, "Error in test 19, Kendall's uplift tau"
     return tau
 
@@ -349,7 +349,7 @@ def test_20():
     tau = uplift_metrics.kendalls_uplift_tau(data_class,
                                              data_score,
                                              data_group,
-                                             k=3)
+                                             n_bins=3)
     assert pytest.approx(tau) == -1/3, "Error in test 20, Kendall's uplift tau"
     return tau
 
@@ -358,7 +358,7 @@ def test_21():
     """
     Tests for Kendall's uplift tau.
 
-    This test tests tie handling where samples need to be split both for
+    This test tests tie handling where observations need to be split both for
     lower and upper boundary of middle bin.
     """
     data_class = np.array([True, False, False, True, True, False, False,
@@ -369,7 +369,7 @@ def test_21():
     tau = uplift_metrics.kendalls_uplift_tau(data_class,
                                              data_score,
                                              data_group,
-                                             k=3)
+                                             n_bins=3)
     assert pytest.approx(tau) == -1/3, "Error in test 20, Kendall's uplift tau"
     return tau
 
