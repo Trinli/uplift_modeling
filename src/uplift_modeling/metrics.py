@@ -6,7 +6,7 @@ This class also contains methods for writing the results to a csv-file.
 """
 
 import csv
-from datetime import datetime
+from datetime import datetime, timezone
 import warnings
 from numba import jit
 import numpy as np
@@ -169,7 +169,8 @@ class UpliftMetrics():
             # Include *everything* in result list:
             result_list = [self.test_name, self.dataset, self.test_description,
                            self.algorithm, self.parameters, str(
-                               datetime.now(datetime.UTC)),
+                               datetime.now(timezone.utc)),
+                               #datetime.now(datetime.UTC)),
                            self.e_r_conversion_rate, self.auuc,
                            self.improvement_to_random, self.qini_coefficient,
                            self.euce, self.muce, self.n_bins, 
@@ -626,29 +627,21 @@ def bin_equally_scoring_samples(data_class, data_score):
         else:
             # Score changed. Append items to list
             # Lists of dicts are not supported by numba.
-            # Use lists of lists instead? Or np.array?
-            # Numba cannot handle lists of dicts. Using list instead:
             score_distribution.append([previous_score,
                                        tmp_n,
                                        previous_score * tmp_n,
                                        tmp_class_sum,
                                        tmp_class_sum / tmp_n])
-            # Reset flags and counters and add latest sample
+            # Reset flags and counters and add latest observation
             previous_score = item_score
             tmp_n = 1.0
             tmp_class_sum = float(int(item_class))
-    # key is {'score': 0, 'samples': 1, 'score_sum': 2,
-    # 'positives': 3, 'expected_class': 4}
-    # score_distribution.append([previous_score,  # Is this an issue for NUMBA?
-    #                            tmp_n,
-    #                            previous_score * tmp_n,
-    #                            tmp_class_sum,
-    #                            tmp_class_sum / tmp_n])
-    score_distribution += [previous_score,
+    # Handling last item:
+    score_distribution += [[previous_score,
                                tmp_n,
                                previous_score * tmp_n,
                                tmp_class_sum,
-                               tmp_class_sum / tmp_n]
+                               tmp_class_sum / tmp_n]]
     return score_distribution
 
 
@@ -659,56 +652,59 @@ def kendalls_uplift_tau(data_class,
                         k=100,
                         tolerance=1e-6):
     """
-    Function for calculating Kendall's tau (i.e. rank _correlation_
-    between k bins). This version handles ties by averaging such
-    samples over neighboring bins (i.e. treating the samples as an
-    expectation of all equally scoring samples in that group).
+    Function for estimating Kendall's tau (i.e. rank _correlation_
+    between k bins). This version handles ties by averaging equally
+    scoring observations over neighboring bins (i.e. treating the 
+    observations as an expectation of all equally scoring observations
+    in that group).
 
-    Args:
-    data_class (np.array([bool])): Array of class-labels. True indicates
-     positive sample.
-    data_score (np.array([float])): Array of scores for samples. These are
-     assumed to be strictly monotonically related to the uplift estimates
-     for the samples.
-    data_group (np.array(bool)): True indicates treatment group, False
-     control group.
-    k (int): Number of bins. Belbahri (2019, Arxiv) suggested using
-     5 or 10, which is just way too few for larger datasets.
-    tolerance (float): Acceptable error due to machine accuracy causing
-     small discrepancies
+    Parameters
+    ----------
+    data_class : np.array([bool]) 
+        Array of class-labels. True indicates positive observation.
+    data_score : np.array([float]) 
+        Array of scores for observations. These are assumed to be strictly 
+        monotonically related to the uplift estimates of the observations.
+    data_group : np.array(bool) 
+        True indicates treatment group, False control group.
+    k : int 
+        Number of bins. Belbahri (2019, Arxiv) suggested using 5 or 10, 
+        which is just way too few for larger datasets.
+    tolerance : float 
+        Acceptable error due to machine accuracy causing small discrepancies.
 
     Notes:
     -This version got very ugly as numba does not support lists of dicts.
     The relevant list-indices to keep in mind are
     {'score': 0, 'samples': 1, 'score_sum': 2, 'positives': 3, 'expected_class': 4}
 
-    -This version uses the group (treatment or control) with fewer samples
+    -This version uses the group (treatment or control) with fewer observations
     to set bin boundaries. The point with this is to ensure that all bins
-    get a more even number of samples in the group with less samples to
+    get a more even number of observations in the group with less observations to
     get more narrow credible intervals. Using the majority group for
     setting bin boundaries could also be a good idea as that would result
     in boundaries being in more "correct" positions. It is not clear which
     version should be better. This could perhaps be analyzed empirically.
-    -Further the bins are populated so that if k=100 and there are 150 samples
-    in the minority group, all bins get 1.5 samples. The fractions are
-    split into bins as weighted expectations of that sample (i.e. a sample
-    that is split .3:.7 acts as .3 of one entire sample in one bin and
-    as .7 of one sample in the other).
-    -Equally scoring samples in one group are all treated as expectations
-    of the samples (i.e. as an "average sample").
+    -Further the bins are populated so that if k=100 and there are 150 observations
+    in the minority group, all bins get 1.5 observations. The fractions are
+    split into bins as weighted expectations of that observations (i.e. an observation
+    that is split .3:.7 acts as .3 of one entire observation in one bin and
+    as .7 of one observations in the other).
+    -Equally scoring observations in one group are all treated as expectations
+    of the observations (i.e. as an "average sample").
     -On a sidenote, due to using the same bin boundaries for the majority
-    samples as defined by the minority samples, the majority samples in
+    observations as defined by the minority observations, the majority observations in
     one bin will be slightly biased upwards as there may always be majority
-    samples in one bin that scores in [max(min_score_i), min(min_score_i+1)]
+    observations in one bin that scores in [max(min_score_i), min(min_score_i+1)]
     where i denotes *this bin. This bias is assumed to be tiny.
-    -There is some numeric instability in this approach as we split samples
+    -There is some numeric instability in this approach as we split observations
     etc. This is dealt with using tolerance.
     -Ties contribute 0 to the numerator of the correlation,
     but 1 to the denominator
 
     The simple version where we simply select boundaries and then place
-    samples based on these would fail on Criteo data as there is a large
-    number of samples with identical scores in the dataset (identical
+    observations based on these would fail on Criteo data as there is a large
+    number of observations with identical scores in the dataset (identical
     profiles, probably users Criteo knew nothing of). Hence this more
     complex version.
     """
@@ -923,7 +919,7 @@ def kendalls_uplift_tau(data_class,
             j += 1
         # Move on to next bin:
         i += 1
-    # If the maj_bins still have samples that are untreated when min_bins is full,
+    # If the maj_bins still have observations that are untreated when min_bins is full,
     # those need to be dealt with separately:
     while l < len(maj_score_distribution):
         # key is {'score': 0, 'samples': 1, 'score_sum': 2, 'positives': 3, 'expected_class': 4}
@@ -1130,11 +1126,14 @@ def _euce_points(data_class, data_prob, data_group,
     """Auxiliary function for expected_uplift_calibration_error().
     This one is numba-optimized. This could also be used for visualization.
 
-    data_class (numpy.array([bool]))
-    data_prob (numpy.array([float])): Predicted change in conversion
-     probability for each sample.
-    data_group (numpy.array([bool]))
-    k (int): Number of groups to split the data into for estimation.
+    Parameters
+    ----------
+    data_class : numpy.array([bool])
+    data_prob : numpy.array([float]) 
+        Predicted change in conversion probability for each sample.
+    data_group : numpy.array([bool])
+    k : int 
+        Number of groups to split the data into for estimation.
     """
     # Doesn't matter if the sorting is ascending or descending.
     idx = np.argsort(data_prob)
@@ -1163,16 +1162,20 @@ def _euce_points(data_class, data_prob, data_group,
 
 def expected_uplift_calibration_error(data_class, data_prob, data_group,
                                       k=100, verbose=False):
-    """Function for estimating the expected calibration error and maximum
+    """
+    Function for estimating the expected calibration error and maximum
     calibration error for uplift. This is an extension of the ECE and MCE
     presented by Naeini & al. in 2015 (their metrics focused on response
     calibration, ours on uplift calibration).
 
-    data_class (numpy.array([bool]))
-    data_prob (numpy.array([float])): Predicted change in conversion
-     probability for each sample.
-    data_group (numpy.array([bool]))
-    k (int): Number of groups to split the data into for estimation.
+    Parameters
+    ----------
+    data_class : numpy.array([bool])
+    data_prob : numpy.array([float]) 
+        Predicted change in conversion probability for each sample.
+    data_group : numpy.array([bool])
+    k : int 
+        Number of groups to split the data into for estimation.
     """
 
     # Sanity check
@@ -1202,12 +1205,15 @@ def estimate_adjusted_e_mse(data_class, data_score, data_group):
     but unknowable. As a consequence, E(MSE) + C is a valid
     metric for goodness of fit e.g. for model comparisons.
     
-    Args:
-    data_class (np.array): Classes of testing observations
-    data_score (np.array): The predicted uplift. Note that the
-     value matters in this metric (in contrast to e.g. AUUC
-     where only rank matters).
-    data_group (np.array): The group of the observations.
+    Parameters
+    ----------
+    data_class : np.array 
+        Classes of testing observations
+    data_score : np.array 
+        The predicted uplift. Note that the value matters in this 
+        metric (in contrast to e.g. AUUC where only rank matters).
+    data_group : np.array 
+        The group of the observations.
     """
     # 1. Calculate the revert-label from the data. Hypothetically
     # we could also request that the function is passed the already
@@ -1384,20 +1390,24 @@ def test_for_differences_in_mean(N_t1, N_c1,
 
     Similar to test_for_beta_difference with uninformative priors.
 
-    Args:
-    N_t1 (int): Number of samples that model_1 would like to treat.
-    N_c1 (int) Number of samples that model_1 would _not_ like to treat.
-    k_t1 (int): Number of positive treatment samples that the treatment
-     plan would have targeted.
-    n_t1 (int): Number of treatment samples that the model_1
-     would have targeted.
-    k_c1 (int): Number of samples below targeting threshold that ended up
-     converting (i.e. positive control samples that model_1 would not
-     have targeted).
-    n_c1 (int): Number of control samples that model_1 would not
-     have targeted.
-
-    *2 (*): Similar as above, but for model_2.
+    Parameters
+    ----------
+    N_t1 : int 
+        Number of samples that model_1 would like to treat.
+    N_c1 : int 
+        Number of samples that model_1 would _not_ like to treat.
+    k_t1 : int 
+        Number of positive treatment samples that the treatment plan would have targeted.
+    n_t1 : int 
+        Number of treatment samples that the model_1 would have targeted.
+    k_c1 : int 
+        Number of samples below targeting threshold that ended up
+        converting (i.e. positive control samples that model_1 would not
+        have targeted).
+    n_c1 : int 
+        Number of control samples that model_1 would not have targeted.
+    *2 : (*) 
+        Similar as above, but for model_2.
 
     Notes:
     This function cannot be Numba-optimized as numba does not support Scipy.
