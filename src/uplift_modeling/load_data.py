@@ -59,7 +59,7 @@ class UpliftDataset(object):
         'data_type': 'float32'}  # Data will be set to this type.
     
     Accessing the data
-    ------
+    ------------------
     The features of the training set can be accessed with ``tmp_data['training_set']['X']``,
     the treatment labels with ``tmp_data['training_set']['t']``, the dependent variable with
     ``tmp_data['training_set']['y']``, the class-variable transformation with 
