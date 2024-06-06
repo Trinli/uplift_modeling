@@ -12,7 +12,7 @@ This leads to:
 p(y | do(t=1)) - p(y | do(t=0)) = 2 * p(z) - 1
 """
 from numpy import float64, where  #, reshape
-from uplift_modeling.data.load_data import DatasetWrapper
+from uplift_modeling.load_data import DatasetWrapper
 import warnings
 
 

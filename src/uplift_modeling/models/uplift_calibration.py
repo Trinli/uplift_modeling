@@ -18,7 +18,7 @@ Misc
 >>> r2
 0.0034759814461150563
 """
-from uplift_modeling.data.load_data import DATA_FORMAT
+from uplift_modeling._data_formats import CRITEO_FORMAT
 import numpy as np
 import csv
 import random
@@ -365,8 +365,8 @@ def test_mini_criteo():
     """
     Code using local criteo100k.csv file to test the above.
     """
-    import uplift_modeling.load_data as load_data
-    data_format = load_data.DATA_FORMAT
+    import uplift_modeling._data_formats as data_formats
+    data_format = data_formats.CRITEO_FORMAT
     # Use different file:
     data_format['file'] = 'criteo100k.csv'
     get_semi_simulated_data(data_format, TEST_RATES,
@@ -377,7 +377,7 @@ def test_new_criteo():
     """
     Does the code work with the newer criteo dataset (criteo-uplift2.csv)?
     """
-    import uplift_modeling.load_data as load_data
-    data_format = load_data.DATA_FORMAT
+    import uplift_modeling._data_formats as data_formats
+    data_format = data_formats.CRITEO_FORMAT
     data_format['file'] = "criteo2/criteo-research-uplift-v2.1.csv"
     get_semi_simulated_data(data_format, data_rates=CRITEO2_RATES, new_t_rate=.5)

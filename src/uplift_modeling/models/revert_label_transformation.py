@@ -5,7 +5,7 @@ transformation, but I picked the 'revert-label' name
 to separate this from class-variable transformation
 following Jaskowski & Jaroszewicz (2012).
 """
-from uplift_modeling.data.load_data import DatasetWrapper
+from uplift_modeling.load_data import DatasetWrapper
 
 
 class RevertLabel(object):

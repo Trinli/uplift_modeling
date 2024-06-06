@@ -23,8 +23,8 @@ import itertools
 import numpy as np
 from scipy.stats import beta
 from sklearn.tree import DecisionTreeRegressor
-from uplift_modeling.metrics import uplift_metrics
-from uplift_modeling.metrics import beta_difference  # Credible intervals given alpha and beta-parameters.
+import uplift_modeling.metrics as uplift_metrics
+from uplift_modeling.metrics import beta_difference_uncertainty  # Credible intervals given alpha and beta-parameters.
 
 
 
@@ -187,7 +187,7 @@ class HonestUpliftTree:
                 beta_1 = tmp_n_t[i] - tmp_y_t[i] + 1
                 alpha_0 = tmp_y_c[i] + 1
                 beta_0 = tmp_n_c[i] - tmp_y_c[i] + 1
-                tmp_hpd = beta_difference.uncertainty(alpha_1, beta_1, alpha_0, beta_0)
+                tmp_hpd = beta_difference_uncertainty(alpha_1, beta_1, alpha_0, beta_0)
                 try:
                     tau = (tmp_y_t[i] / tmp_n_t[i]) -\
                         (tmp_y_c[i] / tmp_n_c[i])
@@ -379,7 +379,7 @@ class HonestUpliftTree:
             predictions = self.predict_uplift(X)
             hpd_list = []
             for row in predictions:
-                    tmp_hpd = beta_difference.uncertainty(
+                    tmp_hpd = beta_difference_uncertainty(
                         predictions['alpha_t'], predictions['beta_t'],
                         row['alpha_c'], row['beta_c'], p=p_mass)
                     hpd_list.append(tmp_hpd['width'])
