@@ -1,4 +1,5 @@
-"""
+"""Uplift metrics
+
 Functions for estimating the most common uplift metrics and some Bayesian
 statistics based on the beta-distribution and the beta-difference distribution.
 The UpliftMetrics-class estimates most metrics with one function call efficiently.
@@ -15,7 +16,8 @@ from scipy.stats import beta
 
 
 class UpliftMetrics():
-    """
+    """All uplift metrics in one class
+
     Class for a collection of metrics relating to uplift modeling.
     The main purpose of this class is to keep track of metrics
     and document the results together with appropriate test
@@ -57,6 +59,7 @@ class UpliftMetrics():
         Number of bins used for estimation of expected uplift calibration
         error and Kendall's tau. Sometimes this is referred to as 'k'.
     """
+
     def __init__(self, data_class, data_prob, data_group,
                  test_name=None, test_description=None,
                  algorithm=None,
@@ -116,9 +119,9 @@ class UpliftMetrics():
         self.adjusted_e_mse = estimate_adjusted_e_mse(data_class, data_prob, data_group)
 
     def __str__(self):
+        """Method for e.g. easy printing of metrics to screen.
         """
-        Method for e.g. easy printing of metrics to screen.
-        """
+
         txt = "-" * 40 + "\n" +\
               "Test name: {0.test_name}\n".format(self) +\
               "Algorithm: {0.algorithm}\n".format(self) +\
@@ -137,8 +140,8 @@ class UpliftMetrics():
         return txt
 
     def write_to_csv(self, file_='uplift_results.csv'):
-        """
-        Method for storing metrics to csv-file in predefined format.
+        """Method for storing metrics to csv-file in predefined format.
+
         The function will by default append the results to the end of the file
         unless the file does not exist in which case it creates that file first.
 
@@ -148,6 +151,7 @@ class UpliftMetrics():
             Filename for the csv-file to write results in. The current working
             directory is used if no path is included.
         """
+
         # 1. Check if file exists. If it does, append results. Otherwise
         # create first and add header row!
         write_new_headers = True
@@ -201,9 +205,9 @@ def expected_conversion_rate(data_class,
                              data_group,
                              k,
                              smoothing=0):
-    """
-    Function for estimating expected conversion rate if 
-    k/N of all observations were treated where N is the
+    """Function for estimating expected conversion rate 
+    
+    Estimated if k/N of all observations were treated where N is the
     number of observations in data_class.
 
     Parameters
@@ -226,14 +230,16 @@ def expected_conversion_rate(data_class,
 
     Implementation details
     ----------------------
-    Tie handling: If k/N splits a clique of equally scoring observations, 
-    they are all treated as the "average" of this clique, i.e. the 
-    resulting conversion rate is an actual expected value.
+    Tie handling
+        If k/N splits a clique of equally scoring observations, 
+        they are all treated as the "average" of this clique, i.e. the 
+        resulting conversion rate is an actual expected value.
 
-    This function uses smoothing = 0 per default. This results in estimating
-    the conversion rate of zero observations to 0. This happens frequently when
-    we set k to something small or something very close to N (the total
-    number of observations). This could be a problem if also N is small.
+    Smoothing
+        This function uses smoothing = 0 per default. This results in estimating
+        the conversion rate of zero observations to 0. This happens frequently when
+        we set k to something small or something very close to N (the total
+        number of observations). This could be a problem if also N is small.
     """
 
     if k == 0:
@@ -310,7 +316,8 @@ def expected_uplift(data_class, data_score, data_group, k=None,
                     model_2_score=None, model_2_k=None,
                     ref_plan_type=None,
                     smoothing=0):
-    """
+    """Function for estimating expected uplift
+
     Function for estimating expected uplift for a given treatment
     plan over a given reference plan. This is the difference
     between the conversion rate produced by the treatment plan and
@@ -341,16 +348,9 @@ def expected_uplift(data_class, data_score, data_group, k=None,
         Can be used only if ref_plan_type == 'model_2'
     ref_plan_type : str
         What method to use for estimation of the conversion rate for the reference plan.
-        Has to be one of 
-
-            'no_treatments'
-             -no treatments applied.
-            'all_treatments'
-             -all observations are treated.
-            'model_2'
-             -top-model_2_k scoring observations following the model_2_score are treated.
-            'gross'
-             -as implemented by Gross & Tibshirani (2016).
+        Options are 'no_treatments' (no treatments applied), 'all_treatments' (all observations 
+        are treated), 'model_2' (top-model_2_k scoring observations following the model_2_score 
+        are treated), and 'gross' (as implemented by Gross & Tibshirani (2016)). 
     smoothing : float
         What value to use for smoothing.
     """
@@ -371,11 +371,8 @@ def expected_uplift(data_class, data_score, data_group, k=None,
         conversion_for_ref = expected_conversion_rate(data_class, model_2_score,
                                                       data_group, model_2_k, smoothing)
     elif ref_plan_type == 'gross':
-        # Use treatments as used in the data for reference.
-        # This was used by Gross & Tibshirani (2016) with smoothing = 0.
-        conversion_for_ref = (sum(data_class) + smoothing) / \
-            (len(data_class) + 2 * smoothing)
-
+        # Use treatments as used in the data for reference. This was used by Gross & Tibshirani (2016) with smoothing set to 0.
+        conversion_for_ref = (sum(data_class) + smoothing) / (len(data_class) + 2 * smoothing)
     tmp_uplift = conversion_for_plan - conversion_for_ref
     return tmp_uplift
 
@@ -401,6 +398,7 @@ def _expected_conversion_rates(data_class, data_score, data_group,
     smoothing : float
         Smoothing used for estimation of conversion rates.
     """
+
     # Order all (this is used in the loop)
     n_observations = len(data_group)
     data_idx = np.argsort(data_score)[::-1]  # Sort in descending order.
@@ -541,19 +539,14 @@ def auuc_metric(data_class, data_score, data_group,
         Array of group for the observations. True indicates that the observation was treated.
     ref_plan_type : str
         Defines what reference plan should be used. Alternatives are:
-        
-        'rand' 
-         -default value. This will result in estimation of AUUC.
-        'all_treatments'
-         -results in an estimate of average improvement in conversion rate 
-         compared to applying treatments to all observations.
-        'no_treatments'
-         -results in an estimate of average improvement in conversion rate 
-         compared to applying no treatments.
-        'zero'
-         -no reference plan. This results in estimation of the expected
-         conversion rate given no preference for treatment rate (in contrast to AUUC
-         that specifically focuses on the improvement in conversion rate, the uplift).
+        'rand' (default value) - this will result in estimation of AUUC,
+        'all_treatments' - results in an estimate of average improvement in conversion rate 
+        compared to applying treatments to all observations.
+        'no_treatments' - results in an estimate of average improvement in conversion rate 
+        compared to applying no treatments.
+        'zero' - no reference plan. This results in estimation of the expected
+        conversion rate given no preference for treatment rate (in contrast to AUUC
+        that specifically focuses on the improvement in conversion rate, the uplift).
     smoothing : float
         Smoothing parameter to use for estimation of conversion rates.
     testing : bool
@@ -630,6 +623,7 @@ def bin_equally_scoring_observations(data_class, data_score):
     data_score : np.array([float])
         Array of uplift scores for the observations.
     """
+
     previous_score = data_score[0]
     tmp_class_sum = 0.0
     tmp_n = 0.0
@@ -1022,8 +1016,7 @@ def kendalls_uplift_tau(data_class,
 def _qini_points(data_class,
                  data_score,
                  data_group):
-    """Auxiliary function for qini_coefficient(). Returns the
-    points on the qini-curve.
+    """Auxiliary function for qini_coefficient(). Returns the points on the qini-curve.
 
     Parameters
     ----------
@@ -1032,6 +1025,7 @@ def _qini_points(data_class,
     data_group : numpy.array([bool]) 
         True indicates that observation belongs to the treatment-group.
     """
+
     # Order data in descending order:
     data_idx = np.argsort(data_score)[::-1]
     data_class = data_class[data_idx]
@@ -1105,6 +1099,7 @@ def qini_coefficient(data_class, data_score, data_group):
     data_group : np.array([bool]) 
         True indicates treatment group, False control group.
     """
+
     qini_points = _qini_points(data_class, data_score, data_group)
     numerator = np.sum(qini_points)
 
@@ -1145,6 +1140,7 @@ def _euce_points(data_class, data_prob, data_group,
     k : int 
         Number of groups to split the data into for estimation.
     """
+
     # Doesn't matter if the sorting is ascending or descending.
     idx = np.argsort(data_prob)
     n_observations = len(data_prob)
@@ -1230,6 +1226,7 @@ def estimate_adjusted_e_mse(data_class, data_score, data_group):
     data_group : np.array 
         Array with the treatment group of the observations.
     """
+
     # 1. Calculate the revert-label from the data. Hypothetically
     # we could also request that the function is passed the already
     # estimated values r from the DatasetCollection.
@@ -1282,13 +1279,14 @@ def beta_difference_uncertainty(alpha1, beta1, alpha0, beta0,
     prior_a1 : float 
         Prior for alpha1
     etc.
-
+        Following the same pattern.
     N : int
         Number of observations to draw. Should probably be at least 10,000.
     p_mass : float
         In [0, 1]. The probability mass required inside of
         the interval.
     """
+
     # Draw observations from distribution
     p_t1 = beta.rvs(alpha1 + prior_a1, beta1 + prior_b1, size=N)
     p_t0 = beta.rvs(alpha0 + prior_a0, beta0 + prior_b0, size=N)
@@ -1362,14 +1360,15 @@ def test_for_beta_difference(alpha11, beta11, alpha12, beta12,
     alpha21 : float
         Alpha for p(y=1|x, t=1) for tau_2
     etc.
-
+        Parameters for model 2 follows the same pattern.
     prior_a11 : float 
         Alpha prior for p(y=1|x, t=1) for tau_1
     etc.
-
+        Priors for model 2 follows the same pattern.
     N : int 
         Number of observations to draw. Should probably be at least 10,000.
     """
+
     p_t11 = beta.rvs(alpha11 + prior_a11, beta11 + prior_b11, size=N)
     p_t10 = beta.rvs(alpha12 + prior_a12, beta12 + prior_b12, size=N)
     tau_1 = p_t11 - p_t10
@@ -1425,6 +1424,7 @@ def test_for_differences_in_mean(N_t1, N_c1,
     etc.    
         Similar as above, but for model_2.
     """
+
     # First model:
     observations_1_1 = beta.rvs(N_t1 + 1, N_c1 + 1, size=size)
     observations_1_2 = beta.rvs(k_t1 + 1, n_t1 - k_t1 + 1, size=size)

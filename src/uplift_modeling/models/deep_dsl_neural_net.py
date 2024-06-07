@@ -1,5 +1,4 @@
-"""
-Deep Data-shared "Lasso" and random search in network architectures
+"""Deep Data-shared "Lasso" and random search in network architectures
 
 This code is made to test a similar approach to the Data-shared Lasso
 proposed by Gross & Tibshirani (2016). Note that while the Lasso uses
@@ -10,11 +9,12 @@ The intention is to do a random search for the network architecture
 to perhaps find a network that outperforms everything up to
 date.
 """
+
 import random
 import torch
 import torch.nn as nn
 import warnings
-import uplift_modeling.data.load_data as load_data
+import uplift_modeling.load_data as load_data
 import uplift_modeling.models.uplift_neural_net as uplift_neural_net
 
 
@@ -48,7 +48,23 @@ class DeepDslNeuralNet(uplift_neural_net.UpliftNeuralNet):
     While they used an actual Lasso (L1-regularized linear
     regression), we use L2 penalty as sparsity in the network
     itself is not useful in this context.
+
+    Parameters
+    ----------
+    n_features : int
+        Number of features in data.
+    layers_dsl : int
+        Number of layers in the dsl-forks of the neural net
+    layers_rem : int
+        Number of layers in the remainder of the neural net after the dsl-layers
+    hidden_units_dsl : int
+        Number of hidden units in every dsl-layer in the net
+    hidden_units_rem : int
+        Number of hidden units in every rem-layer in the net
+    dropout_rate : float
+        Dropout rate used in all dropout layers
     """
+
     def __init__(self, n_features,
                  layers_dsl=6,
                  layers_rem=6,
@@ -57,20 +73,6 @@ class DeepDslNeuralNet(uplift_neural_net.UpliftNeuralNet):
                  dropout_rate=.5,
                  dsl_penalty=1,
                  learning_rate=LEARNING_RATE):
-        """
-        Args:
-        n_features (int): Number of features in data.
-        layers_dsl (int): Number of layers in the dsl-forks
-         of the neural net
-        layers_rem (int): Number of layers in the remainder
-         of the neural net after the dsl-layers
-        hidden_units_dsl (int): Number of hidden units in
-         every dsl-layer in the net
-        hidden_units_rem (int): Number of hidden units in
-         every rem-layer in the net
-        dropout_rate (float): Dropout rate used in all dropout
-         layers
-        """
         # Initialize the nn.Module.
         # uplift_neural_net.__init__() is not useful in this context.
         super(uplift_neural_net.UpliftNeuralNet, self).__init__()
@@ -96,10 +98,11 @@ class DeepDslNeuralNet(uplift_neural_net.UpliftNeuralNet):
 
 
     def set_model_architecture(self):
+        """Method for setting the model architecture. 
+        
+        Uses parameters stored in self.
         """
-        Method for setting the model architecture. Uses parameters
-        stored in self.
-        """
+
         # Create the DSL-layer for the control data:
         model_c = torch.nn.ModuleList()
         model_c.append(nn.Linear(self.n_features, self.hidden_units_dsl))
@@ -155,6 +158,7 @@ class DeepDslNeuralNet(uplift_neural_net.UpliftNeuralNet):
         mode (bool): True sets model into training mode (has effect
          on dropout layers), False into evaluation mode.
         """
+
         self.model['model_c'].train(mode)
         self.model['model_t'].train(mode)
         self.model['model_rem'].train(mode)
@@ -166,6 +170,7 @@ class DeepDslNeuralNet(uplift_neural_net.UpliftNeuralNet):
         t (torch.Tensor): treatment label ('1' for treatment group,
          '0' for control group)
         """
+
         tmp_c = self.model['model_c'](x)
         tmp_t = self.model['model_t'](x) * t.view(-1, 1).repeat(1, self.hidden_units_dsl)
         res = self.model['model_rem'](torch.cat([tmp_c, tmp_t], dim=1))
@@ -176,6 +181,7 @@ class DeepDslNeuralNet(uplift_neural_net.UpliftNeuralNet):
         Args:
         batch (dict): A batch as returned by the DataLoader iterator.
         """
+
         self.set_training_mode(True)
         y_pred = self(batch['X'].to(DEVICE), batch['t'].to(DEVICE))
         loss = self.loss_fn(y_pred, batch['y'].view(-1, 1).to(DEVICE)) +\
@@ -206,14 +212,15 @@ class DeepDslNeuralNet(uplift_neural_net.UpliftNeuralNet):
         Args:
         n_features (int): Number of features in the data.
         max_layers_dsl (int): Number of maximum input layers in the
-         dsl-parts of the network.
+        dsl-parts of the network.
         max_layers_rem (int): Maximum number of layers in the remaining
-         network.
+        network.
         max_hidden_units_dsl (int): Maximum number of hidden units in a
-         dsl-layer.
+        dsl-layer.
         max_hidden_units_rem (int): Maximum number of hidden units in the
-         remaining network.
+        remaining network.
         """
+
         # The following assertions are here to ensure that network training
         # does not become too computationally complex.
         assert n_features > 0, "n_features needs to be larger than 0"
@@ -258,9 +265,10 @@ class DeepDslNeuralNet(uplift_neural_net.UpliftNeuralNet):
 
         Args:
         data (load_data.DatasetCollection): Data containing all required
-         sets.
+        sets.
         n_networks (int): Number of random network to sample and train.
         """
+
         if n_networks < 20:
             warnings.warn("n_networks is set to {}. ".format(n_networks) +
                           "It should preferably be > 100")
@@ -303,8 +311,9 @@ class DeepDslNeuralNet(uplift_neural_net.UpliftNeuralNet):
 
         Args:
         data (load_data.DatasetCollection): Data containing all required
-         sets.
+        sets.
         """
+
         # Prepare data for training. We are here using the alternative
         # sets present in the load_data.DatasetCollection object because
         # we need a validation set for early stopping and another one

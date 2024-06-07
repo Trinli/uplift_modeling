@@ -39,9 +39,10 @@ class DirichletGPModel(ExactGP):
 
 
 class DirichletGP():
+    """This wraps class above neatly.
+
     """
-    This wraps class above neatly.
-    """
+
     def __init__(self):
         self.likelihood = None  # Likelihood of _transformed_ _parameter_!!
         self.model = None
@@ -49,36 +50,37 @@ class DirichletGP():
         self.negative_log_likelihood = None
 
     def fit(self, X, y, alpha_eps=0.1, training_iter=10):
-        """
-        First, do necessary variable transformation of y
+        """First, do necessary variable transformation of y
 
-        Args:
-        X (np.array): Features
-        y (np.array): Labels
+        Parameters
+        ----------
+        X : np.array
+            Features
+        y : np.array
+            Labels
         """
+
         train_y = np.array([item * 1 for item in y])
         train_y = torch.from_numpy(train_y)
-        #train_y.to(DEVICE)
+        # train_y.to(DEVICE)
         train_x = torch.from_numpy(X)
-        #train_x.to(DEVICE)
-
+        # train_x.to(DEVICE)
         # initialize likelihood and model
         # we let the DirichletClassificationLikelihood compute the targets for us
         self.likelihood = DirichletClassificationLikelihood(train_y, learn_additional_noise=True,
                                                             alpha_epsilon=alpha_eps)
-        #self.likelihood.transformed_targets.to(DEVICE)
-        #self.likelihood.to(DEVICE)
+        # self.likelihood.transformed_targets.to(DEVICE)
+        # self.likelihood.to(DEVICE)
         self.model = DirichletGPModel(train_x, self.likelihood.transformed_targets, 
                                       self.likelihood, num_classes=self.likelihood.num_classes)
-        #self.likelihood.to(DEVICE)
-        #self.model.to(DEVICE)
+        # self.likelihood.to(DEVICE)
+        # self.model.to(DEVICE)
         # Find optimal model hyperparameters
         self.model.train()
         self.likelihood.train()
-
         # Use the adam optimizer
-        optimizer = torch.optim.Adam(self.model.parameters(), lr=0.1)  # Includes GaussianLikelihood parameters
-
+        # Includes GaussianLikelihood parameters
+        optimizer = torch.optim.Adam(self.model.parameters(), lr=0.1)
         # "Loss" for GPs - the marginal log likelihood
         mll = gpytorch.mlls.ExactMarginalLogLikelihood(self.likelihood, self.model)
         last_loss = 1e6  # "Big number"
@@ -94,8 +96,7 @@ class DirichletGP():
                 print('Iter %d/%d - Loss: %.3f   lengthscale: %.3f   noise: %.3f' % (
                     i + 1, training_iter, loss.item(),
                     self.model.covar_module.base_kernel.lengthscale.mean().item(), 
-                    self.model.likelihood.second_noise_covar.noise.mean().item()
-                ))
+                    self.model.likelihood.second_noise_covar.noise.mean().item()))
             optimizer.step()
             if last_loss <= loss:
                 # Loss has not improved over five iterations.
@@ -119,13 +120,13 @@ class DirichletGP():
         self.mean_negative_log_likelihood = mean_negative_log_likelihood
 
     def predict(self, X):
+        """Method for predicting probabilities.
+
         """
-        Method for predicting probabilities.
-        """
+
         # Predictions
         self.model.eval()
         self.likelihood.eval()
-
         test_x = torch.from_numpy(X)
         #test_x.to(DEVICE)
 
@@ -147,11 +148,14 @@ class DirichletGP():
         Returns 2-d array with probability of negative class in first column
         and probability of positive class in second column.
 
-        Args:
-        X (np.array): Features of _one_ observation.
-        sample_size (int): Number of observations to generate. Milios used 1000,
-         gpytorch example 256.
+        Parameters
+        ----------
+        X : np.array
+            Features of _one_ observation.
+        sample_size : int
+            Number of observations to generate. Milios used 1000, gpytorch example 256.
         """
+
         self.model.eval()
         self.likelihood.eval()
 
@@ -172,11 +176,10 @@ class DirichletGP():
 
 
 class DirichletGPUplift():
+    """Uplift model based on the gpytorch-implementation.
     """
-    """
+
     def __init__(self):
-        """
-        """
         self.model_t = DirichletGP()
         self.model_c = DirichletGP()
         self.mean_negative_log_likelihood = None
@@ -184,14 +187,21 @@ class DirichletGPUplift():
 
     def fit(self, X_t, y_t, X_c, y_c, alpha_eps=0.1, max_iterations=1000, auto_alpha_eps=True):
         """
-        Args:
-        X_t (np.array): Features
-        y_t (np.array): Features
-        alpha_eps (float): Parameter for variable transformation
-        max_iterations (int): Maximum number of training iterations
-        auto_alpha_eps (bool): Automatically search for good alpha_eps. Setting this to
-         True will ignore alpha_eps parameter.
+        Parameters
+        ----------
+        X_t : np.array
+            Features
+        y_t : np.array
+            Features
+        alpha_eps : float
+            Parameter for variable transformation
+        max_iterations : int
+            Maximum number of training iterations
+        auto_alpha_eps : bool
+            Automatically search for good alpha_eps. Setting this to 
+            True will ignore alpha_eps parameter.
         """
+
         t_observations = y_t.shape[0]
         c_observations = y_c.shape[0]
         tot_observations = t_observations + c_observations
@@ -237,8 +247,9 @@ class DirichletGPUplift():
             self.mean_negative_log_likelihood, self.alpha_epsilon))
 
     def predict_uplift(self, X):
+        """Predict method.
         """
-        """
+
         tmp_t = self.model_t.predict(X)
         tmp_c = self.model_c.predict(X)
         # tmp_t[1] contains probabilities for positive class
@@ -254,6 +265,7 @@ class DirichletGPUplift():
         X (np.array): Features of _ONE_ observation.
         sample_size (int): Number of observations to generate.
         """
+
         tmp_t = self.model_t.generate_sample(X, sample_size=sample_size)
         tmp_c = self.model_c.generate_sample(X, sample_size=sample_size)
         # Defining uplift as the difference between probabilities for positive outcome:
@@ -267,9 +279,10 @@ class DirichletGPUplift():
         Args:
         X (np.array): Features of observations
         p_mass (float): In ]0, 1]. Probability mass that needs to
-         fall within credible interval.
+        fall within credible interval.
         sample_size (int): Size of sample to generate in MC.
         """
+
         # Auxiliary function
         def find_smallest_window(tau, p_mass=0.95):
             """
@@ -278,6 +291,7 @@ class DirichletGPUplift():
             Do they have to be in [0, 1]? E.g. a GP could potentially
             produce something else.
             """
+
             # 1. Sort tau in increasing order
             tau = np.sort(tau)
             # 2. Calculate window size N_{1-alpha}
@@ -329,5 +343,6 @@ class DirichletGPUplift():
         X (np.array): Features
         p_mass (float): In ]0, 1]. Probability mass in HPD-interval.
         """
+
         credible_intervals = self.get_credible_intervals(X, p_mass, mc_samples)
         return np.mean([item['width'] for item in credible_intervals])

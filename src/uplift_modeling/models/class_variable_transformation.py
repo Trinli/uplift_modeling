@@ -10,6 +10,7 @@ z = True if (y == False and t == False)
 z = False else.
 This leads to:
 p(y | do(t=1)) - p(y | do(t=0)) = 2 * p(z) - 1
+
 """
 from numpy import float64, where  #, reshape
 from uplift_modeling.load_data import DatasetWrapper
@@ -27,6 +28,7 @@ class ClassVarTransform():
     """
     Base-class for CVT-Z -based approaches.
     Modify the base-learners to suit this.
+
     """
     def __init__(self, base_learner):
         """
@@ -45,8 +47,11 @@ class ClassVarTransform():
         Function for estimating uplift with class-variable
         transformation.
 
-        Args:
-        data (np.array([[float]])): Array with features ('X').
+        Parameters
+        ----------
+        data : np.array([[float]])
+            Array with features ('X').
+
         """
         predictions = self.model.predict(X)
         uplift_predictions = 2.0 * predictions - 1.0
@@ -64,6 +69,7 @@ class LogisticRegression(ClassVarTransform):
         Logistic regression from sklearn predicts probabilities
         for both classes. Hence we need to overwrite this method
         in the parent class.
+
         """
         tmp = self.model.predict_proba(X)
         # The logistic regression library predicts probabilities for
@@ -90,6 +96,7 @@ class LogisticReWeight(LogisticRegression):
     is around 0.2%. In such a case, 99.8% of the samples are samples where
     y_i == 0. The class-variable transformation just labels 15% of those
     as z = 1 and leaves the rest as z = 0.
+
     """
     def fit(self, data):
         """
@@ -98,13 +105,16 @@ class LogisticReWeight(LogisticRegression):
         resampling to fulfil the requirements of the class-variable
         transformation (i.e. p(t) == p(c)).
 
-        Args:
-        data (load_data.DataCollection): Data for uplift modeling.
+        Parameters
+        ----------
+        data : load_data.DataCollection
+            Data for uplift modeling.
 
         Note:
         Due to penalty in the logistic regression module, the results
         actually differ depending on whether we set treatment or control
         sample weight as 1 (and adjust the other).
+
         """
         N_t = sum(data['training_set']['t'])
         N_c = sum(~data['training_set']['t'])
@@ -124,14 +134,16 @@ class LogisticReWeight(LogisticRegression):
 class CVTNeuralNet(ClassVarTransform):
     """
     Class for neural net with class-variable transformation.
+
+    Parameters
+    ----------
+    n_features : int
+        Needed for initialization of neural network.
+
     """
 
     def __init__(self, n_features):
-        """
-        Args:
-        n_features (int): Needed for initialization of neural network.
-        """
-        from models.neural_net import NeuralNet
+        from uplift_modeling.models.neural_net import NeuralNet
         self.n_features = n_features
         self.model = NeuralNet(self.n_features, dependent_var='z')
 
@@ -141,14 +153,16 @@ class CVTNeuralNet(ClassVarTransform):
         """
         Method for fitting neural network.
 
-        Args:
-        data (load_data.DatasetCollection): Contains both training set and
-        validation set for early stopping. Also contains a second validation
-        set for model selection.
-        undersampling (str): {None, '11', '1111'}. Only training data is undersampled.
-         Validation set is not as we want best performance on data with natural
-         sampling rate.
-        hyperparameters (?): ???
+        Parameters
+        ----------
+        data : load_data.DatasetCollection
+            Contains both training set and validation set for early stopping.
+            Also contains a second validation set for model selection.
+        undersampling : str
+            In {None, '11', '1111'}. Only training data is undersampled.
+            Validation set is not as we want best performance on data with natural
+            sampling rate.
+
         """
         training_data = DatasetWrapper(data['training_set_2', undersampling,
                                             'all'])
@@ -163,6 +177,7 @@ class CVTNeuralNet(ClassVarTransform):
         """
         Wrapper for predict_uplift from parent class.
         The output needs reshaping.
+
         """
         predicted_uplift = super().predict_uplift(X)
         predicted_uplift = predicted_uplift.reshape(-1).astype(float64)
@@ -172,6 +187,7 @@ class CVTNeuralNet(ClassVarTransform):
 class CVTRandomForest(ClassVarTransform):
     """
     Class-variable transformation with random forest.
+
     """
     def __init__(self):
         from sklearn.ensemble import RandomForestClassifier
@@ -181,8 +197,11 @@ class CVTRandomForest(ClassVarTransform):
         """
         Method for fitting the uplift model.
 
-        Args:
-        data (load_data.DatasetCollection): The data
+        Parameters
+        ----------
+        data : load_data.DatasetCollection
+            The data
+
         """
         self.model.fit(X=data['training_set']['X'], y=data['training_set']['z'])
 
@@ -190,8 +209,11 @@ class CVTRandomForest(ClassVarTransform):
         """
         Method for predicting uplift.
 
-        Args:
-        X (numpy.array): The features
+        Parameters
+        ----------
+        X : numpy.array()
+            The features
+
         """
         pred = self.model.predict_proba(X)
         # Find the "true" class:

@@ -16,17 +16,17 @@ class DataSharedLasso(object):
     Original Data-shared lasso as proposed by Gross &
     Tibshirani (2016).
     Training one of these might require cross-validation
-     for parameter selection (at least for alpha).
+    for parameter selection (at least for alpha).
+
+    Parameters
+    ----------
+    dsl_penalty : float
+        We are using a uniform dsl-penalty as proposed in the original paper.
+    alpha : float
+        The penalty to use for the lasso-regression. Setting this too large
+        will cause all coefficients to approach zero.
     """
     def __init__(self, dsl_penalty=1/sqrt(2), alpha=.001):
-        """
-        Args:
-        dsl_penalty (float): We are using a uniform dsl-penalty
-         as proposed in the original paper.
-        alpha (float): The penalty to use for the lasso-regression.
-         Setting this too large will cause all coefficients to
-         approach zero.
-        """
         from sklearn.linear_model import Lasso
         self.model = Lasso(alpha=alpha)
         self.dsl_penalty = dsl_penalty
@@ -34,18 +34,20 @@ class DataSharedLasso(object):
     def fit(self, data):
         """
         Function for fitting a Data-shared lasso using the augmented
-         approach proposed by Gross & Tibshirani (2016).
+        approach proposed by Gross & Tibshirani (2016).
 
-        Args:
-        data (load_data.DatasetCollection): Data in format
-         proposed in load_data.
+        Parameters
+        ----------
+        data : load_data.DatasetCollection
+            Data in format proposed in load_data.
+
         """
         # Info on control (c) samples:
         c_rows, c_cols = data['training_set', None, 'control']['X'].shape
         # Info on training (t) samples:
         t_rows, t_cols = data['training_set', None, 'treatment']['X'].shape
         # The augmented approach is basically one where these two form a
-        # super-matrix where one takes up the left-upper cells, and the ohter
+        # super-matrix where one takes up the left-upper cells, and the other
         # the right-lower cells, filling the reamining cells with 0's.
         tmp_X = np.zeros([t_rows + c_rows, t_cols * 3])
         # X_1 in the paper is now X_c:
@@ -62,11 +64,14 @@ class DataSharedLasso(object):
 
     def predict_uplift(self, X):
         """
-        Function for predicting uplift
+        Function for predicting uplift.
 
-        Args:
-        X (numpy.array([float])): An array of data to use for prediction.
-         load_data.DatasetCollection contains these in e.g. testing set etc.
+        Parameters
+        ----------
+        X : numpy.array([float])
+            An array of data to use for prediction. load_data.DatasetCollection
+            contains these in e.g. testing set etc.
+
         """
         # Here we need to predict conversion probability both with and
         # without treatment:

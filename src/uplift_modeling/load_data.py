@@ -733,24 +733,10 @@ class UpliftDataset(object):
             subsetted so that the ratio between treated and untreated
             observations is 1:1.
 
-
-        args[1] = undersampling {None, '1:1', '1111'}: None causes no undersampling
-         at all, '1:1' results in treatment and control groups being equally large,
-         '1111' results in '1:1' and #positive and #negative in both groups to be
-         equally large.
-        args[2] = group {'all', 'treatment', 'control'}: 'all' and None both
-         return all data. 'treatment' returns observations that were treated etc.
-
         Returns
         -------
         dict
             Dict with appropriate data with the customary keys.
-
-        Notes
-        -Fix overall structure.
-        -Must check for 
-        -If '1:1' dataset does not exist in self.datasets.keys(), create
-         the dataset.
         """
         # Handle input arguments:
         group = 'all'  # Subset for treatment or control?

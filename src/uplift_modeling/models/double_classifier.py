@@ -138,10 +138,10 @@ class IndividualLogisticRegressionPyTorch(SequentialTorch):
 
 
 class IndividualNNPyTorch(SequentialTorch):
-    """ Neural network.
+    """Neural network.
 
-        Can be used instead of LogisticRegression with DoubleClassifier.
-        See IndividualLogisticRegressionPyTorch.
+    Can be used instead of LogisticRegression with DoubleClassifier.
+    See IndividualLogisticRegressionPyTorch.
     """
 
     def __init__(self, n_features, output_dim=2, 
@@ -168,14 +168,15 @@ class IndividualNNPyTorch(SequentialTorch):
             nn.BatchNorm1d(n_hidden_units),
 
             nn.Linear(n_hidden_units, output_dim),
-        )        
+        )
         super().__init__(model, **kwargs)
 
 
 class SupportVectorMachine(DoubleClassifier):
+    """Double classifier using SVM and isotonic regression
+
     """
-    Double classifier using SVM and isotonic regression
-    """
+
     class SVM_IR(object):
         """
         Auxiliary class for support vector machine and isotonic regression.
@@ -183,6 +184,7 @@ class SupportVectorMachine(DoubleClassifier):
         first predicts a score and isotonic regression further transforms
         this into a probability.
         """
+
         def __init__(self):
             from sklearn.svm import SVC
             from sklearn.isotonic import IsotonicRegression

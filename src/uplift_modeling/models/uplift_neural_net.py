@@ -23,8 +23,8 @@ import warnings
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
-import uplift_modeling.data.load_data as load_data
-import uplift_modeling.metrics.uplift_metrics as uplift_metrics
+import uplift_modeling.load_data as load_data
+import uplift_modeling.metrics as uplift_metrics
 
 
 if torch.cuda.is_available():
@@ -60,7 +60,7 @@ class UpliftNeuralNet(nn.Module):
     Notes:
     Methods that should remain as is are:
     -__init__() (create own __init__ method for class and call
-     super().__init__().
+    super().__init__().
     -fit()
     -predict_uplift()
     -get_metrics()
@@ -68,13 +68,13 @@ class UpliftNeuralNet(nn.Module):
     When making a new class that inherits this, changes might be
     needed to the following:
     1. small additions to __init__() (e.g. storage of previously
-     undefined variables, still call super().__init__(), though).)
+    undefined variables, still call super().__init__(), though).)
     2. set_model_architecture() should create your _new_ neural net
     3. forward() needs to work with model architecture
     4. set_training_mode() for the new architecture
     5. estimate_loss() for the new architecture.
     6. optional: init_grid_search(), initialization using grid
-     search to find optimal model in grid.
+    search to find optimal model in grid.
     """
 
     def __init__(self, model):
@@ -97,7 +97,7 @@ class UpliftNeuralNet(nn.Module):
 
         Args:
         mode (bool): True indicates training mode, False evaluation
-         mode.
+        mode.
         """
         self.model.train(mode)
 
@@ -140,6 +140,7 @@ class UpliftNeuralNet(nn.Module):
                 # If training time has exceeded set limit.
                 print("Maximum training time reached ({} seconds)".format(max_training_time))
                 break
+
             if i % 10 == 0:
                 # Estimate goodness of current model:
                 val_ecrr = self.get_metrics(validation_data)

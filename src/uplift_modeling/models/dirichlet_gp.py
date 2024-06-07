@@ -1,7 +1,7 @@
-"""
-Dirichlet-based Gaussian Process for classification following
-Milos & al. 2018 
-**** AND ****
+"""Dirichlet-based Gaussian Process for classification following Milos & al. 2018 
+
+AND 
+
 An uplift model using said GPD as base-learner. This uplift
 model is our contribution. It contains methods to evaluate
 the uncertainty of the estiamtes.
@@ -27,33 +27,38 @@ import heteroskedastic
 print("This implementation seems to have some flaws. Use the implementation in gpy_dirichlet.py instead.")
 
 class DirichletGP():
-    """
-    Dirichlet-based Gaussian Process following Milos & al. 2018.
+    """Dirichlet-based Gaussian Process following Milos & al. 2018.
+
     Only implements binary label.
     Original code at https://github.com/dmilios/dirichletGPC
     """
 
     def __init__(self):
-        """
-        Args:
-        """
         self.model = None  # Needed outside of fit
         self.y_mean = None  # Needed outside of fit
         self.report = {}
 
     def fit(self, X, y, Z=None,  a_eps=0.1,
             ARD=False, ampl=None, leng=None):
-        """
+        """Fit-method for Dirichlet-based Gaussian Process
+
         Perhaps split into "get_parameters()" and "estimate_density()"
         or something. Would be useful to extract the parameters for
         further post-processing.
 
-        Args
-        X (np.array): Features
-        y (np.array): Binary labels
-        a_eps (float): "Bias" for dirichlet priors. Must be larger than 0.
-        ARD (bool): (Not used in experiments.)
+        Parameters
+        ----------
+        X : np.array
+            Features
+        y : np.array
+            Binary labels
+        a_eps : float
+            "Bias" for dirichlet priors. Must be larger than 0.
+        ARD : bool
+            (Not used in experiments.)
+
         """
+
         dim = X.shape[1]
         if ARD:
             len0 = np.repeat(np.mean(np.std(X, 0)) * np.sqrt(dim), dim)
@@ -116,17 +121,19 @@ class DirichletGP():
         This makes post-processing possible, e.g. the distribution
         of the uncertainty of a prediction can be plotted in full.
 
-        Args:
-        X (np.array): Features.
+        Parameters
+        ----------
+        X : np.array
+            Features.
         """
+
         fmu_original, fs2 = self.model.predict_f(X.astype(np.float64))
         fmu = fmu_original + self.y_mean
         return {'fmu': fmu, 'fs2': fs2}
 
     def uncertainty_of_prediction(self, fmu_item, fs2_item, N_samples=1000):
-        """
-        Method to create histogram of distribution of uncertainty
-        for _one_ prediction.
+        """Method to create histogram of distribution of uncertainty for _one_ prediction.
+
         This should not actually be part of the class in this format.
         Does not need model or any other parameters in any way.
         -Auxiliary function?
@@ -139,12 +146,16 @@ class DirichletGP():
         0 and class 1. Class 1 is what we are interested in. As in negative and
         positive class.
 
-        Args:
-        fmu (np.array): Mean values for class 0 and class 1.
-        fs2 (np.array): Variances for class 0 and class 1
-        mc_samples (int): Number of observations to draw in Monte
-         Carlo simulation.
+        Parameters
+        ----------
+        fmu : np.array
+            Mean values for class 0 and class 1.
+        fs2 : np.array
+            Variances for class 0 and class 1
+        mc_samples : int
+            Number of observations to draw in Monte Carlo simulation.
         """
+
         source = np.random.randn(N_samples, 2)  # Sampling random normal. Binary case.
         # Generating observations of new distribution (approximated gamma)
         # samples = source * np.sqrt(fs2[i,:]) + fmu[i,:]
@@ -154,15 +165,17 @@ class DirichletGP():
         return samples
 
     def predict(self, X, q=95):
-        """
-        Method now returns mean prediction and upper and lower q-percentile
+        """Method now returns mean prediction and upper and lower q-percentile
         bounds. Note that this is not an HPD-interval!!!
 
-        Args:
-        X (np.array): Features for observations to predict from.
-        q (float): Percentile (i.e. in 0-100) for desired upper
-         and lower bounds.
+        Parameters
+        ----------
+        X : np.array
+            Features for observations to predict from.
+        q : float
+            Percentile (i.e. in 0-100) for desired upper and lower bounds.
         """
+
         # Prediction
         tmp = self.predict_params(X)
         fmu = tmp['fmu']
@@ -190,13 +203,14 @@ class DirichletGP():
         return {'mu': mu_dir, 'lb': lb_dir, 'ub': ub_dir, 'samples': random_sample}
 
     def generate_sample(self, X):
-        """
-        Method that generates a random sample for every observation in X from
-        the conditional distribution on x.
+        """Method that generates a random sample for every observation in X from the conditional distribution on x.
 
-        Args:
-        X (np.array): Features for observations to predict from.
+        Parameters
+        ----------
+        X :np.array
+            Features for observations to predict from.
         """
+
         # Prediction
         tmp = self.predict_params(X)
         fmu = tmp['fmu']
@@ -216,34 +230,44 @@ class DirichletGP():
 
 
 class DirichletUplift():
-    """
-    An uplift model using the Dirichlet-based Gaussian Process
-    as base learner.
+    """An uplift model using the Dirichlet-based Gaussian Process as base learner.
 
     Maybe set up class so that the uncertainties can be predicted
     or plotted for one sample?
     We might need to implement search over a_eps.
     """
+
     def __init__(self):
         self.model_t = DirichletGP()
         self.model_c = DirichletGP()
 
     def fit(self, X_t, y_t, X_c, y_c, a_eps=0.1):
+        """Fit-method.
+
+        Parameters
+        ----------
+        X_t : np.array
+            Features of _treated_ observations
+        y_t : np.array
+            Labels of treated observations
+        X_c : np.array
+            Features of untreated (control) observations
+        y_c : np.array
+            Labels of untreated observations
         """
-        Args:
-        X_t (np.array): Features of _treated_ observations
-        y_t (np.array): Labels of treated observations
-        X_c (np.array): Features of untreated (control) observations
-        y_c (np.array): Labels of untreated observations
-        """
+
         self.model_t.fit(X_t, y_t, a_eps=a_eps)
         self.model_c.fit(X_c, y_c, a_eps=a_eps)
 
     def predict_uplift(self, X):
+        """Prediction method.
+
+        Parameters
+        ----------
+        X : np.array
+            Features of observations to predict for.
         """
-        Bla?
-        Focus on positive label?
-        """
+
         pred_t = self.model_t.predict(X)
         pred_c = self.model_c.predict(X)
         # The predictions now contain 'fmu' for both positive and
@@ -255,10 +279,11 @@ class DirichletUplift():
         return np.array(tau)            
 
     def generate_sample(self, X):
-        """
-        Bla?
+        """Bla?
+
         Focus on positive label?
         """
+
         pred_t = self.model_t.generate_sample(X)
         pred_c = self.model_c.generate_sample(X)
         # The predictions now contain 'fmu' for both positive and
@@ -269,15 +294,18 @@ class DirichletUplift():
         return uplift_samples
 
     def predict_uncertainty(self, X, mc_samples=1000):
-        """
-        Estimate uncertainty for _one_ observation.
+        """Estimate uncertainty for _one_ observation.
+        
         -Plot? Just parameters? Monte Carlo sampling?
 
-        Args:
-        X (np.array): Features of _one_ observation.
-        mc_samples (int): Number of observations to draw in Monte
-         Carlo sampling process.
+        Parameters
+        ----------
+        X : np.array
+            Features of _one_ observation.
+        mc_samples : int
+            Number of observations to draw in Monte Carlo sampling process.
         """
+
         tmp_t = self.model_t.predict_params(X.reshape(1, -1))
         tmp_c = self.model_c.predict_params(X.reshape(1, -1))
         samples_t = self.model_t.uncertainty_of_prediction(tmp_t['fmu'], tmp_t['fs2'], mc_samples)
@@ -286,23 +314,29 @@ class DirichletUplift():
         return tau_samples
 
     def get_credible_intervals(self, X, p_mass=0.95, mc_samples=1000):
-        """
-        Method for getting HPD credible intervals for all of X.
+        """Method for getting HPD credible intervals for all of X.
 
-        Args:
-        X (np.array): Features of observations
-        p_mass (float): In ]0, 1]. Probability mass that needs to
-         fall within credible interval.
-        mc_samples (int): Size of sample to generate in MC.
+        Parameters
+        ----------
+        X : np.array
+            Features of observations
+        p_mass : float
+            In ]0, 1]. Probability mass that needs to fall within credible interval.
+        mc_samples : int
+            Size of sample to generate in MC.
         """
-        # Auxiliary function
+
         def find_smallest_window(tau, p_mass=0.95):
+            """Auxiliary method.
+
+            Parameters
+            ----------
+            tau : np.array
+                Array of ... WHAT? Samples from distribution.
+                Do they have to be in [0, 1]? E.g. a GP could potentially
+                produce something else.
             """
-            Args:
-            tau (np.array): Array of ... WHAT? Samples from distribution.
-            Do they have to be in [0, 1]? E.g. a GP could potentially
-            produce something else.
-            """
+
             # 1. Sort tau in increasing order
             tau = np.sort(tau)
             # 2. Calculate window size N_{1-alpha}
@@ -352,12 +386,15 @@ class DirichletUplift():
         return intervals
 
     def mean_credible_interval_width(self, X, p_mass=0.95, mc_samples=1000):
-        """
-        Method for estimating the average width of the credible intervals.
+        """Method for estimating the average width of the credible intervals.
 
-        Args:
-        X (np.array): Features
-        p_mass (float): In ]0, 1]. Probability mass in HPD-interval.
+        Parameters
+        ----------
+        X : np.array
+            Features
+        p_mass : float
+            In ]0, 1]. Probability mass in HPD-interval.
         """
+
         credible_intervals = self.get_credible_intervals(X, p_mass, mc_samples)
         return np.mean([item['width'] for item in credible_intervals])
